@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowRight, Flame, Snowflake } from "lucide-react";
+import { ArrowRight, Flame, Info, Snowflake } from "lucide-react";
 import { Ring } from "@/components/ui/Ring";
+import { authConfigured } from "@/lib/auth";
 
 /**
  * Deliberately not a centered hero. The headline is hard-left and bottom-
@@ -37,18 +38,48 @@ export default function Landing() {
               work a score can usefully bribe you into doing.
             </p>
 
+            {/* Sign-in is an upgrade, not a gate. With no Google credentials
+                configured, don't offer a button that lands on an error page —
+                lead with the thing that actually works. */}
             <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Link href="/api/auth/signin" className="btn btn-signal !px-5 !py-3">
-                Sign in with Google
-              </Link>
-              <Link
-                href="/today"
-                className="btn flex items-center gap-2 !px-5 !py-3"
-              >
-                Look around with sample data
-                <ArrowRight size={13} strokeWidth={2} />
-              </Link>
+              {authConfigured ? (
+                <>
+                  <Link
+                    href="/api/auth/signin"
+                    className="btn btn-signal !px-5 !py-3"
+                  >
+                    Sign in with Google
+                  </Link>
+                  <Link
+                    href="/today"
+                    className="btn flex items-center gap-2 !px-5 !py-3"
+                  >
+                    Look around with sample data
+                    <ArrowRight size={13} strokeWidth={2} />
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  href="/today"
+                  className="btn btn-signal flex items-center gap-2 !px-5 !py-3"
+                >
+                  Open the planner
+                  <ArrowRight size={13} strokeWidth={2} />
+                </Link>
+              )}
             </div>
+
+            {!authConfigured && (
+              <p className="mt-4 flex max-w-[46ch] items-start gap-2 text-[12px] leading-relaxed text-mute">
+                <Info size={13} strokeWidth={1.5} className="mt-[2px] shrink-0" />
+                <span>
+                  Everything works right now — your week is stored in this
+                  browser. Google Calendar sync stays switched off until
+                  credentials are set; <code className="font-mono">README.md</code>{" "}
+                  has the steps.
+                </span>
+              </p>
+            )}
           </div>
 
           {/* spec strip — the actual mechanics, stated flatly */}

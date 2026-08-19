@@ -52,9 +52,18 @@ export default function SettingsPage() {
     reseed,
   } = useStore();
   const [perm, setPerm] = useState<string>("default");
+  const [status, setStatus] = useState<{
+    authConfigured: boolean;
+    databaseConfigured: boolean;
+    google: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (typeof Notification !== "undefined") setPerm(Notification.permission);
+    fetch("/api/auth/status")
+      .then((r) => r.json())
+      .then(setStatus)
+      .catch(() => setStatus({ authConfigured: false, databaseConfigured: false, google: false }));
   }, []);
 
   async function askNotify() {
@@ -316,13 +325,47 @@ export default function SettingsPage() {
               hint="Booking a block writes an event. Completion stays in here — by the time you tick something off, the slot has already passed, so writing it back would only add noise to your calendar."
             >
               <div className="flex items-center gap-3">
-                <a href="/api/auth/signin" className="btn btn-signal">
-                  {profile.calendarConnected ? "Reconnect" : "Connect Google"}
-                </a>
-                <span className="t-label">
-                  {profile.calendarConnected ? "connected" : "not connected"}
-                </span>
+                {status?.authConfigured ? (
+                  <>
+                    <a href="/api/auth/signin" className="btn btn-signal">
+                      {profile.calendarConnected ? "Reconnect" : "Connect Google"}
+                    </a>
+                    <span className="t-label">
+                      {profile.calendarConnected ? "connected" : "not connected"}
+                    </span>
+                  </>
+                ) : (
+                  <span className="chip border-line-hot text-mute">
+                    not configured on this deployment
+                  </span>
+                )}
               </div>
+
+              {status && !status.authConfigured && (
+                <ul className="mt-3 max-w-lg space-y-1">
+                  {[
+                    ["Google OAuth client", status.google],
+                    ["Database URL", status.databaseConfigured],
+                  ].map(([label, ok]) => (
+                    <li
+                      key={label as string}
+                      className="flex items-center gap-2 font-mono text-[11px]"
+                    >
+                      <span
+                        className={`h-[7px] w-[7px] shrink-0 ${
+                          ok ? "bg-cool" : "bg-line-hot"
+                        }`}
+                      />
+                      <span className={ok ? "text-dim" : "text-mute"}>
+                        {label as string}
+                      </span>
+                      <span className={ok ? "text-cool" : "text-mute"}>
+                        {ok ? "set" : "missing"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <p className="mt-3 max-w-lg text-[11px] leading-relaxed text-mute">
                 Scopes requested: <span className="font-mono">calendar.events</span>{" "}
                 (read and write) and basic profile. Nothing else is read, and no
