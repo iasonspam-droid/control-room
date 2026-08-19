@@ -1,26 +1,257 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ─────────────────────────────────────────────────────────────
+   Control Room — design tokens.  See DESIGN.md for the rationale.
+   Warm-black instrument panel. One accent, one support, one alarm.
+   ───────────────────────────────────────────────────────────── */
+
+@theme {
+  --color-bg: #100f0d;
+  --color-surface: #1a1815;
+  --color-surface-2: #23201c;
+  --color-surface-3: #2b2721;
+  --color-line: #2e2924;
+  --color-line-hot: #473f37;
+
+  --color-text: #ede7dc;
+  --color-dim: #9a9187;
+  --color-mute: #665e55;
+
+  /* the accent */
+  --color-signal: #f5751f;
+  --color-signal-dim: #a44c14;
+  --color-signal-wash: #2a1a0e;
+
+  /* the support — "banked" */
+  --color-cool: #4ea8b8;
+  --color-cool-dim: #2f6d79;
+  --color-cool-wash: #11242a;
+
+  /* the alarm */
+  --color-alarm: #b5442e;
+  --color-alarm-wash: #2a1310;
+
+  /* functional category band — one lightness, one chroma, warm→cool */
+  --color-cat-amber: #c97b3c;
+  --color-cat-clay: #b0614f;
+  --color-cat-olive: #8a9a54;
+  --color-cat-teal: #4e9a8f;
+  --color-cat-steel: #5c7c9e;
+  --color-cat-plum: #8b6b94;
+
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+
+  --radius-none: 0px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-variation-settings: "wdth" 100;
+  }
+
+  ::selection {
+    background: var(--color-signal);
+    color: #100f0d;
+  }
+
+  /* Square by default. Pills and rings opt in. */
+  button,
+  input,
+  select,
+  textarea {
+    border-radius: 0;
+  }
+
+  input,
+  textarea,
+  select {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-line);
+    color: var(--color-text);
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: var(--color-signal);
+    box-shadow: inset 0 -2px 0 var(--color-signal);
+  }
+
+  /* Scrollbars belong to the panel, not the OS. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-bg);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-line);
+    border: 3px solid var(--color-bg);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-line-hot);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* ── Type roles ─────────────────────────────────────────── */
+
+  /* Stencilled panel heading. The wdth axis is the signature. */
+  .t-display {
+    font-family: var(--font-sans);
+    font-variation-settings: "wdth" 118;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 0.92;
+  }
+
+  /* Small mono label — every field name, unit and key in the product. */
+  .t-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-mute);
+  }
+
+  /* Every quantity. Tabular so columns line up. */
+  .t-num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* ── Surfaces ───────────────────────────────────────────── */
+
+  .panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+  }
+
+  /* Hard offset, never a soft ambient blur. Modals and popovers only. */
+  .lifted {
+    box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.55);
+  }
+
+  /* Graph paper. The only decoration in the system. */
+  .gridpaper {
+    background-image: linear-gradient(
+        to right,
+        rgba(237, 231, 220, 0.035) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        rgba(237, 231, 220, 0.035) 1px,
+        transparent 1px
+      );
+    background-size: 32px 32px;
+  }
+
+  /* ── Controls ───────────────────────────────────────────── */
+
+  .btn {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.625rem 1rem;
+    border: 1px solid var(--color-line-hot);
+    color: var(--color-text);
+    background: var(--color-surface-2);
+    transition: background 120ms linear, border-color 120ms linear,
+      color 120ms linear;
+    cursor: pointer;
+  }
+  .btn:hover {
+    background: var(--color-surface-3);
+    border-color: var(--color-dim);
+  }
+
+  .btn-signal {
+    background: var(--color-signal);
+    border-color: var(--color-signal);
+    color: #140c05;
+  }
+  .btn-signal:hover {
+    background: #ff8a37;
+    border-color: #ff8a37;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--color-dim);
+  }
+  .btn-ghost:hover {
+    background: var(--color-surface-2);
+    border-color: var(--color-line);
+    color: var(--color-text);
+  }
+
+  /* Round means state. Square means structure. */
+  .chip {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid var(--color-line-hot);
+    color: var(--color-dim);
+    white-space: nowrap;
+  }
+}
+
+@layer utilities {
+  .wdth-x {
+    font-variation-settings: "wdth" 118;
+  }
+  .wdth-c {
+    font-variation-settings: "wdth" 82;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Live indicators — the only motion in the product, and it is slow. */
+@keyframes pulse-signal {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.live-dot {
+  animation: pulse-signal 2.4s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
 }
