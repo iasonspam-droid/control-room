@@ -177,7 +177,17 @@ export const authConfig: NextAuthConfig = {
     : [],
   // JWT rather than database sessions: route handlers then need one DB round trip
   // (the Account row) instead of two, and the session survives a DB hiccup.
-  session: { strategy: "jwt" },
+  //
+  // 90 days, rolling: `updateAge` re-issues the token once a day of use, so
+  // anyone opening this weekly effectively never signs in again. Opting *out*
+  // ("keep me signed in" unchecked) is handled in middleware.ts, which strips
+  // the cookie's expiry so it dies with the browser — a per-login lifetime is
+  // not something Auth.js can express in this config alone.
+  session: {
+    strategy: "jwt",
+    maxAge: 90 * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
+  },
   trustHost: true,
   secret:
     process.env.AUTH_SECRET ??

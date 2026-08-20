@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Flame, Info, Snowflake } from "lucide-react";
 import { Ring } from "@/components/ui/Ring";
 import { auth, authConfigured } from "@/lib/auth";
+import { SignInButton } from "@/components/shell/SignInButton";
 
 /**
  * Deliberately not a centered hero. The headline is hard-left and bottom-
@@ -43,7 +44,7 @@ export default async function Landing() {
             {/* Sign-in is an upgrade, not a gate. With no Google credentials
                 configured, don't offer a button that lands on an error page —
                 lead with the thing that actually works. */}
-            <div className="mt-9 flex flex-wrap items-center gap-3">
+            <div className="mt-9 flex flex-wrap items-start gap-4">
               {session?.user ? (
                 <>
                   <Link
@@ -59,15 +60,10 @@ export default async function Landing() {
                 </>
               ) : authConfigured ? (
                 <>
-                  <Link
-                    href="/api/auth/signin"
-                    className="btn btn-signal !px-5 !py-3"
-                  >
-                    Sign in with Google
-                  </Link>
+                  <SignInButton />
                   <Link
                     href="/today"
-                    className="btn flex items-center gap-2 !px-5 !py-3"
+                    className="btn flex items-center gap-2 self-start !px-5 !py-3"
                   >
                     Look around with sample data
                     <ArrowRight size={13} strokeWidth={2} />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Plus, RotateCcw, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { CAT_VAR } from "@/lib/derive";
@@ -51,6 +52,10 @@ export default function SettingsPage() {
     streak,
     reseed,
   } = useStore();
+  const { data: session } = useSession();
+  // Set by the jwt callback when Google rejects the stored refresh token —
+  // the 7-day Testing-mode expiry is the usual cause.
+  const expired = session?.error === "RefreshAccessTokenError";
   const [perm, setPerm] = useState<string>("default");
   const [status, setStatus] = useState<{
     authConfigured: boolean;
@@ -328,10 +333,14 @@ export default function SettingsPage() {
                 {status?.authConfigured ? (
                   <>
                     <a href="/api/auth/signin" className="btn btn-signal">
-                      {profile.calendarConnected ? "Reconnect" : "Connect Google"}
+                      {session?.user ? "Reconnect" : "Connect Google"}
                     </a>
                     <span className="t-label">
-                      {profile.calendarConnected ? "connected" : "not connected"}
+                      {session?.user
+                        ? expired
+                          ? "authorisation expired"
+                          : `connected as ${session.user.email ?? session.user.name}`
+                        : "not connected"}
                     </span>
                   </>
                 ) : (
@@ -340,6 +349,23 @@ export default function SettingsPage() {
                   </span>
                 )}
               </div>
+
+              {expired && (
+                <div className="mt-3 max-w-lg border border-alarm/50 bg-alarm-wash p-3">
+                  <p className="text-[12px] leading-relaxed text-text">
+                    Google stopped accepting the stored authorisation, so new
+                    blocks aren&rsquo;t reaching your calendar. Hit{" "}
+                    <strong>Reconnect</strong> above — nothing in your planner is
+                    affected either way.
+                  </p>
+                  <p className="mt-2 text-[11px] leading-relaxed text-mute">
+                    If this happens every week, the OAuth app is still in{" "}
+                    <span className="font-mono">Testing</span> mode in Google
+                    Cloud, where every authorisation expires after 7 days.
+                    Publishing the app removes the expiry.
+                  </p>
+                </div>
+              )}
 
               {status && !status.authConfigured && (
                 <ul className="mt-3 max-w-lg space-y-1">
