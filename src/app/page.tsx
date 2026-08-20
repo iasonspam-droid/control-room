@@ -5,6 +5,19 @@ import { auth, authConfigured } from "@/lib/auth";
 import { SignInButton } from "@/components/shell/SignInButton";
 
 /**
+ * Never prerender this page.
+ *
+ * `authConfigured()` reads process.env at call time, but that only helps if the
+ * call happens during a request. Without this, Next static-renders `/` at build
+ * time: if the Google/DB variables are absent from the build environment (they
+ * are, when marked Sensitive on Vercel — or when they were only added after the
+ * last deploy), the "not configured" branch is baked into the HTML and the
+ * sign-in button never appears at runtime no matter what is set. Dev is always
+ * dynamic, which is why localhost looks fine and the deployment does not.
+ */
+export const dynamic = "force-dynamic";
+
+/**
  * Deliberately not a centered hero. The headline is hard-left and bottom-
  * anchored against a full-height rule; the right column is the product's own
  * readout, running as a still. You see the instrument before you read a word.
