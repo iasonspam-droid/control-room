@@ -10,6 +10,10 @@
 
 generator client {
   provider = "prisma-client-js"
+  // "native" covers local development; Vercel's Node runtime is Amazon Linux
+  // with OpenSSL 3.0, and without that target the engine binary is absent in
+  // the deployed function and PrismaClient throws on construction.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
