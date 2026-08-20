@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { auth } from "@/lib/auth";
+import { SessionProvider } from "@/components/shell/SessionProvider";
 
 /* Self-hosted so the panel never flashes a fallback and never phones home.
    Archivo ships the wdth axis — that expanded heading width is the signature. */
@@ -30,12 +32,18 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Fetched once here (server-side) so client components read it from context
+  // instead of each firing its own request to /api/auth/session on mount.
+  const session = await auth();
+
   return (
     <html lang="en" className={`${archivo.variable} ${mono.variable}`}>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <SessionProvider session={session}>{children}</SessionProvider>
+      </body>
     </html>
   );
 }

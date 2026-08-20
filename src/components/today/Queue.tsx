@@ -2,20 +2,24 @@
 
 import { useState } from "react";
 import { addDays, format } from "date-fns";
+import { useSession } from "next-auth/react";
 import { CalendarPlus, Check, Plus, X } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { catColor, unscheduled } from "@/lib/derive";
 import { nextFreeSlot } from "@/lib/schedule";
 import { fmtDuration } from "@/lib/time";
 import { QUADRANT_META, QUADRANT_WEIGHT, taskXp } from "@/lib/xp";
-import type { Quadrant } from "@/lib/types";
+import type { Quadrant, Task } from "@/lib/types";
 import { Empty } from "@/components/ui/Panel";
+import { createCalendarEvent } from "@/lib/calendar-client";
 
 export function Queue({ day }: { day: Date }) {
-  const { tasks, categories, profile, completeTask, schedule, removeTask } =
+  const { tasks, categories, profile, completeTask, schedule, removeTask, updateTask } =
     useStore();
+  const { data: session } = useSession();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   const queue = unscheduled(tasks).sort(
     (a, b) =>
@@ -23,24 +27,51 @@ export function Queue({ day }: { day: Date }) {
       b.estimateMin - a.estimateMin,
   );
 
+  function flash(message: string, ms = 4000) {
+    setNote(message);
+    setTimeout(() => setNote(null), ms);
+  }
+
   /* Roll forward until it fits. A late-evening "no room today" is a dead end;
-     landing on Thursday morning and saying so is an answer. */
-  function book(id: string, minutes: number) {
+     landing on Thursday morning and saying so is an answer.
+     Booking is local-first: the block lands on the timeline immediately,
+     then Google Calendar catches up in the background. A slow or failed
+     sync should never make the click itself feel like it did nothing. */
+  async function book(task: Task) {
     for (let i = 0; i < 14; i++) {
       const target = addDays(day, i);
-      const slot = nextFreeSlot(tasks, target, minutes, profile);
+      const slot = nextFreeSlot(tasks, target, task.estimateMin, profile);
       if (!slot) continue;
-      schedule(id, slot.toISOString(), minutes);
+
+      const startIso = slot.toISOString();
+      const endIso = new Date(
+        slot.getTime() + task.estimateMin * 60_000,
+      ).toISOString();
+
+      schedule(task.id, startIso, task.estimateMin);
       if (i > 0) {
-        setNote(
+        flash(
           `no room today — booked ${format(slot, "EEEE").toLowerCase()} at ${format(slot, "HH:mm")}`,
         );
-        setTimeout(() => setNote(null), 4000);
+      }
+
+      if (session?.user) {
+        setSyncingId(task.id);
+        const result = await createCalendarEvent({
+          summary: task.title,
+          start: startIso,
+          end: endIso,
+        });
+        setSyncingId(null);
+        if (result.ok && result.eventId) {
+          updateTask(task.id, { calendarEventId: result.eventId });
+        } else if (result.message) {
+          flash(`booked locally — ${result.message}`, 5500);
+        }
       }
       return;
     }
-    setNote("no room in the next two weeks — shorten it or cut something");
-    setTimeout(() => setNote(null), 4000);
+    flash("no room in the next two weeks — shorten it or cut something");
   }
 
   return (
@@ -100,9 +131,14 @@ export function Queue({ day }: { day: Date }) {
             </div>
             <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
               <button
-                onClick={() => book(t.id, t.estimateMin)}
-                title="Book the next free slot today"
-                className="text-mute transition-colors hover:text-signal"
+                onClick={() => book(t)}
+                disabled={syncingId === t.id}
+                title={
+                  session?.user
+                    ? "Book the next free slot and add it to Google Calendar"
+                    : "Book the next free slot today"
+                }
+                className="text-mute transition-colors hover:text-signal disabled:animate-pulse disabled:text-signal"
               >
                 <CalendarPlus size={14} strokeWidth={1.5} />
               </button>

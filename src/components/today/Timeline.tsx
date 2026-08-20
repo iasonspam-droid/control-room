@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { differenceInMinutes, parseISO, startOfDay } from "date-fns";
-import { Check, CornerUpLeft, Undo2 } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { Check, CornerUpLeft, RefreshCw, Undo2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { catColor, tasksOnDay } from "@/lib/derive";
 import { fmtRange } from "@/lib/time";
 import { QUADRANT_META, taskXp } from "@/lib/xp";
 import type { Task } from "@/lib/types";
+import { deleteCalendarEvent } from "@/lib/calendar-client";
 
 const HOUR_H = 64;
 
@@ -58,8 +60,18 @@ function layout(items: Task[]) {
 export function Timeline({ day }: { day: Date }) {
   const { tasks, categories, profile, completeTask, uncompleteTask, unschedule } =
     useStore();
+  const { data: session } = useSession();
   const scroller = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(() => new Date());
+
+  /* Local state moves the block back to the queue instantly; the Calendar
+     delete happens after, best-effort — see calendar-client.ts. */
+  function handleUnschedule(task: Task) {
+    unschedule(task.id);
+    if (session?.user && task.calendarEventId) {
+      void deleteCalendarEvent(task.calendarEventId);
+    }
+  }
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
@@ -156,7 +168,7 @@ export function Timeline({ day }: { day: Date }) {
             color={catColor(categories, t.categoryId)}
             onComplete={() => completeTask(t.id)}
             onUndo={() => uncompleteTask(t.id)}
-            onUnschedule={() => unschedule(t.id)}
+            onUnschedule={() => handleUnschedule(t)}
           />
         ))}
       </div>
@@ -244,6 +256,14 @@ function Block({
                 {done ? "+" : ""}
                 {taskXp(task.actualMin ?? task.estimateMin, task.quadrant)} xp
               </span>
+              {task.calendarEventId && (
+                <RefreshCw
+                  size={9}
+                  strokeWidth={2}
+                  className="text-cool"
+                  aria-label="Synced to Google Calendar"
+                />
+              )}
             </div>
           )}
         </div>

@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { ArrowRight, Flame, Info, Snowflake } from "lucide-react";
 import { Ring } from "@/components/ui/Ring";
-import { authConfigured } from "@/lib/auth";
+import { auth, authConfigured } from "@/lib/auth";
 
 /**
  * Deliberately not a centered hero. The headline is hard-left and bottom-
  * anchored against a full-height rule; the right column is the product's own
  * readout, running as a still. You see the instrument before you read a word.
  */
-export default function Landing() {
+export default async function Landing() {
+  const session = authConfigured ? await auth() : null;
+
   return (
     <div className="gridpaper flex min-h-dvh flex-col bg-bg">
       <div className="grid flex-1 grid-cols-1 lg:grid-cols-[1.15fr_1fr]">
@@ -42,7 +44,20 @@ export default function Landing() {
                 configured, don't offer a button that lands on an error page —
                 lead with the thing that actually works. */}
             <div className="mt-9 flex flex-wrap items-center gap-3">
-              {authConfigured ? (
+              {session?.user ? (
+                <>
+                  <Link
+                    href="/today"
+                    className="btn btn-signal flex items-center gap-2 !px-5 !py-3"
+                  >
+                    Continue to your planner
+                    <ArrowRight size={13} strokeWidth={2} />
+                  </Link>
+                  <span className="t-label">
+                    signed in as {session.user.email ?? session.user.name}
+                  </span>
+                </>
+              ) : authConfigured ? (
                 <>
                   <Link
                     href="/api/auth/signin"
