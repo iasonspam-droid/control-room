@@ -10,7 +10,8 @@ import { SignInButton } from "@/components/shell/SignInButton";
  * readout, running as a still. You see the instrument before you read a word.
  */
 export default async function Landing() {
-  const session = authConfigured ? await auth() : null;
+  const configured = authConfigured();
+  const session = configured ? await auth() : null;
 
   return (
     <div className="gridpaper flex min-h-dvh flex-col bg-bg">
@@ -58,7 +59,7 @@ export default async function Landing() {
                     signed in as {session.user.email ?? session.user.name}
                   </span>
                 </>
-              ) : authConfigured ? (
+              ) : configured ? (
                 <>
                   <SignInButton />
                   <Link
@@ -80,7 +81,7 @@ export default async function Landing() {
               )}
             </div>
 
-            {!authConfigured && (
+            {!configured && (
               <p className="mt-4 flex max-w-[46ch] items-start gap-2 text-[12px] leading-relaxed text-mute">
                 <Info size={13} strokeWidth={1.5} className="mt-[2px] shrink-0" />
                 <span>

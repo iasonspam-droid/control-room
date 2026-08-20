@@ -94,7 +94,7 @@ async function authorize(): Promise<Authorized | Response> {
 
 /** Fill in title and times from the stored task when the client only sends an id. */
 async function loadTask(userId: string, taskId: string) {
-  if (!databaseConfigured) return null;
+  if (!databaseConfigured()) return null;
   return prisma.task.findFirst({
     where: { id: taskId, userId },
     select: {
@@ -115,7 +115,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const body = await readBody(request);
   const task = body.taskId ? await loadTask(authorized.userId, body.taskId) : null;
-  if (body.taskId && databaseConfigured && !task) {
+  if (body.taskId && databaseConfigured() && !task) {
     return json({ error: "task_not_found" }, 404);
   }
 

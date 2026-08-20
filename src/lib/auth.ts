@@ -16,19 +16,34 @@ const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 /** Refresh a little early so an in-flight Calendar call can't race the expiry. */
 const EXPIRY_SKEW_SECONDS = 60;
 
-const googleClientId = process.env.GOOGLE_CLIENT_ID ?? process.env.AUTH_GOOGLE_ID;
-const googleClientSecret =
-  process.env.GOOGLE_CLIENT_SECRET ?? process.env.AUTH_GOOGLE_SECRET;
+/**
+ * All of these are functions, never module-level constants.
+ *
+ * Vercel does not expose variables marked "Sensitive" to the build step — only
+ * to the runtime. Anything captured at module scope is therefore evaluated
+ * during `next build`, when the values are absent, and frozen at that answer:
+ * the deployment then reports itself unconfigured forever while happily
+ * reading the same variables inside a request handler.
+ */
+function googleClientId(): string | undefined {
+  return process.env.GOOGLE_CLIENT_ID ?? process.env.AUTH_GOOGLE_ID;
+}
+
+function googleClientSecret(): string | undefined {
+  return process.env.GOOGLE_CLIENT_SECRET ?? process.env.AUTH_GOOGLE_SECRET;
+}
 
 /**
  * Sign-in is an optional upgrade, not a prerequisite: the UI runs entirely on the
  * local zustand store until someone actually configures Google + Postgres. So we
- * assemble the config defensively and export a provider-less one when credentials
+ * assemble the config defensively and return a provider-less one when credentials
  * are missing — importing this module must never throw, or `next build` dies.
  */
-export const authConfigured = Boolean(
-  googleClientId && googleClientSecret && databaseConfigured,
-);
+export function authConfigured(): boolean {
+  return Boolean(
+    googleClientId() && googleClientSecret() && databaseConfigured(),
+  );
+}
 
 declare module "next-auth" {
   interface Session {
@@ -77,14 +92,16 @@ async function rotateGoogleAccessToken(
   accountId: string,
   refreshToken: string,
 ): Promise<GoogleTokenResponse | null> {
-  if (!googleClientId || !googleClientSecret) return null;
+  const clientId = googleClientId();
+  const clientSecret = googleClientSecret();
+  if (!clientId || !clientSecret) return null;
 
   const response = await fetch(GOOGLE_TOKEN_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: googleClientId,
-      client_secret: googleClientSecret,
+      client_id: clientId,
+      client_secret: clientSecret,
       grant_type: "refresh_token",
       refresh_token: refreshToken,
     }),
@@ -116,7 +133,7 @@ async function rotateGoogleAccessToken(
 export async function getGoogleAccessToken(
   userId: string,
 ): Promise<AccessTokenResult> {
-  if (!authConfigured) return { ok: false, reason: "not-connected" };
+  if (!authConfigured()) return { ok: false, reason: "not-connected" };
 
   const account = await prisma.account.findFirst({
     where: { userId, provider: "google" },
@@ -153,15 +170,16 @@ export async function getGoogleAccessToken(
   return { ok: true, accessToken: tokens.access_token, scope: tokens.scope ?? scope };
 }
 
-export const authConfig: NextAuthConfig = {
+export function buildAuthConfig(): NextAuthConfig {
+  return {
   // The adapter is only ever touched inside a request, so wiring it up without a
   // database would be harmless — but skipping it keeps the failure mode obvious.
-  ...(databaseConfigured ? { adapter: PrismaAdapter(prisma) as Adapter } : {}),
-  providers: authConfigured
+  ...(databaseConfigured() ? { adapter: PrismaAdapter(prisma) as Adapter } : {}),
+  providers: authConfigured()
     ? [
         Google({
-          clientId: googleClientId,
-          clientSecret: googleClientSecret,
+          clientId: googleClientId(),
+          clientSecret: googleClientSecret(),
           authorization: {
             params: {
               scope: GOOGLE_SCOPES,
@@ -196,7 +214,7 @@ export const authConfig: NextAuthConfig = {
     // protect, so a placeholder is safe here and keeps /api/auth/* answering 200
     // instead of 500 on a fresh checkout. Once Google *is* configured, a missing
     // secret is a real misconfiguration and Auth.js should say so loudly.
-    (authConfigured ? undefined : "control-room-unconfigured-placeholder"),
+    (authConfigured() ? undefined : "control-room-unconfigured-placeholder"),
   callbacks: {
     async jwt({ token, user, account }) {
       if (user?.id) token.userId = user.id;
@@ -238,6 +256,16 @@ export const authConfig: NextAuthConfig = {
       return session;
     },
   },
-};
+  };
+}
 
-export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+/**
+ * Auth.js accepts a factory so the config is assembled per request rather than
+ * at import. That is what lets a Sensitive (runtime-only) GOOGLE_CLIENT_ID
+ * actually register the provider — evaluated at module scope during the build,
+ * the provider list would be permanently empty and every sign-in would hit
+ * "there is a problem with the server configuration".
+ */
+export const { handlers, auth, signIn, signOut } = NextAuth(() =>
+  buildAuthConfig(),
+);

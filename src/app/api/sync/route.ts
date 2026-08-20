@@ -74,7 +74,7 @@ export async function GET(): Promise<Response> {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return json({ error: "unauthenticated" }, 401);
-  if (!databaseConfigured) return json({ error: "database_not_configured" }, 503);
+  if (!databaseConfigured()) return json({ error: "database_not_configured" }, 503);
 
   const [categories, tasks, goals, log, profile, streak, events] =
     await Promise.all([
@@ -191,7 +191,7 @@ export async function PUT(request: Request): Promise<Response> {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return json({ error: "unauthenticated" }, 401);
-  if (!databaseConfigured) return json({ error: "database_not_configured" }, 503);
+  if (!databaseConfigured()) return json({ error: "database_not_configured" }, 503);
 
   let payload: unknown;
   try {

@@ -12,10 +12,21 @@ declare global {
   var __controlRoomPrisma: PrismaClient | undefined;
 }
 
-export const databaseConfigured = Boolean(process.env.DATABASE_URL);
+/**
+ * Read at call time, never captured in a module-level const.
+ *
+ * Vercel withholds variables marked "Sensitive" from the build step and only
+ * injects them at runtime. A `const x = Boolean(process.env.DATABASE_URL)`
+ * therefore evaluates during the build, folds to `false`, and stays false
+ * forever — while `process.env.DATABASE_URL` is perfectly readable when a
+ * request actually arrives. Every configuration check has to be a function.
+ */
+export function databaseConfigured(): boolean {
+  return Boolean(process.env.DATABASE_URL);
+}
 
 export function getPrisma(): PrismaClient {
-  if (!databaseConfigured) {
+  if (!databaseConfigured()) {
     throw new Error("DATABASE_URL is not set — persistence is disabled.");
   }
   globalThis.__controlRoomPrisma ??= new PrismaClient({
