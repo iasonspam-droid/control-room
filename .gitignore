@@ -44,3 +44,6 @@ next-env.d.ts
 
 # screenshots from the verification pass
 /shots/
+
+.vercel
+.env*
