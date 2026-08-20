@@ -30,6 +30,8 @@ export function Rail() {
   const xp = useStore((s) => s.xp);
   const { level, into, span, pct } = levelProgress(xp);
   const { data: session, status } = useSession();
+  const syncStatus = useStore((s) => s.syncStatus);
+  const syncMessage = useStore((s) => s.syncMessage);
 
   return (
     <nav className="flex w-[188px] shrink-0 flex-col border-r border-line bg-surface">
@@ -96,24 +98,56 @@ export function Rail() {
 
       {/* Only shown once signed in — Settings already covers "not connected"
           / "not configured" states, so this stays quiet otherwise. */}
-      {status === "authenticated" && session?.user && (
-        <div className="flex items-center gap-2.5 border-t border-line px-4 py-2.5">
-          <span className="grid h-6 w-6 shrink-0 place-items-center border border-line-hot bg-cool-wash font-mono text-[10px] font-bold text-cool">
-            {(session.user.name ?? session.user.email ?? "?")
-              .slice(0, 1)
-              .toUpperCase()}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-[11px] text-dim">
-            {session.user.email ?? session.user.name}
-          </span>
-          <button
-            onClick={() => signOut({ callbackUrl: "/" })}
-            title="Sign out"
-            className="shrink-0 text-mute transition-colors hover:text-alarm"
-            aria-label="Sign out"
+      {status === "authenticated" && session?.user ? (
+        <div className="border-t border-line px-4 py-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-6 w-6 shrink-0 place-items-center border border-line-hot bg-cool-wash font-mono text-[10px] font-bold text-cool">
+              {(session.user.name ?? session.user.email ?? "?")
+                .slice(0, 1)
+                .toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[11px] text-dim">
+              {session.user.email ?? session.user.name}
+            </span>
+            <button
+              onClick={() => signOut({ callbackUrl: "/" })}
+              title="Sign out"
+              className="shrink-0 text-mute transition-colors hover:text-alarm"
+              aria-label="Sign out"
+            >
+              <LogOut size={13} strokeWidth={1.5} />
+            </button>
+          </div>
+          <div
+            className="mt-1.5 flex items-center gap-1.5"
+            title={syncMessage ?? undefined}
           >
-            <LogOut size={13} strokeWidth={1.5} />
-          </button>
+            <span
+              className={`h-[5px] w-[5px] shrink-0 ${
+                syncStatus === "error"
+                  ? "bg-alarm"
+                  : syncStatus === "idle"
+                    ? "bg-cool"
+                    : "live-dot bg-signal"
+              }`}
+            />
+            <span className="t-label !text-[9px]">
+              {syncStatus === "loading"
+                ? "loading"
+                : syncStatus === "saving"
+                  ? "saving"
+                  : syncStatus === "error"
+                    ? "not saved"
+                    : "saved to your account"}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="border-t border-line px-4 py-2.5">
+          <div className="flex items-center gap-1.5">
+            <span className="h-[5px] w-[5px] shrink-0 bg-line-hot" />
+            <span className="t-label !text-[9px]">this browser only</span>
+          </div>
         </div>
       )}
 

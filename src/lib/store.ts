@@ -23,8 +23,18 @@ export interface XpEvent {
   kind: "task" | "log" | "goal";
 }
 
+/** "local" = signed-out demo in this browser. "cloud" = a real account. */
+export type StoreMode = "local" | "cloud";
+export type SyncStatus = "idle" | "loading" | "saving" | "error";
+
 interface State {
   ready: boolean;
+  mode: StoreMode;
+  /** Whose data is loaded, so a second sign-in on the same browser can't inherit it. */
+  ownerId: string | null;
+  syncStatus: SyncStatus;
+  syncMessage?: string;
+
   profile: Profile;
   categories: Category[];
   tasks: Task[];
@@ -36,6 +46,19 @@ interface State {
 
   hydrate: () => void;
   reseed: () => void;
+  /** Replace everything with a signed-in user's server state. */
+  adoptRemote: (
+    userId: string,
+    data: Partial<
+      Pick<
+        State,
+        "profile" | "categories" | "tasks" | "goals" | "log" | "streak" | "xp" | "events"
+      >
+    >,
+  ) => void;
+  /** Drop back to the signed-out demo, wiping whatever the account had loaded. */
+  releaseRemote: () => void;
+  setSync: (status: SyncStatus, message?: string) => void;
 
   addTask: (t: Partial<Task> & { title: string; categoryId: string }) => void;
   updateTask: (id: string, patch: Partial<Task>) => void;
@@ -97,6 +120,9 @@ export const useStore = create<State>()(
   persist(
     (set, get) => ({
       ready: false,
+      mode: "local" as StoreMode,
+      ownerId: null,
+      syncStatus: "idle" as SyncStatus,
       profile: SEED_PROFILE,
       categories: SEED_CATEGORIES,
       tasks: [],
@@ -112,7 +138,40 @@ export const useStore = create<State>()(
       xp: 0,
       events: [],
 
+      adoptRemote: (userId, data) =>
+        set({
+          mode: "cloud",
+          ownerId: userId,
+          ready: true,
+          syncStatus: "idle",
+          syncMessage: undefined,
+          ...data,
+        }),
+
+      releaseRemote: () => {
+        const s = buildSeed(new Date());
+        set({
+          mode: "local",
+          ownerId: null,
+          syncStatus: "idle",
+          syncMessage: undefined,
+          categories: SEED_CATEGORIES,
+          profile: SEED_PROFILE,
+          tasks: s.tasks,
+          goals: s.goals,
+          log: s.log,
+          streak: s.streak,
+          xp: s.xp,
+          events: [],
+          ready: true,
+        });
+      },
+
+      setSync: (syncStatus, syncMessage) => set({ syncStatus, syncMessage }),
+
       hydrate: () => {
+        // In cloud mode the server is authoritative; the sync hook fills state in.
+        if (get().mode === "cloud") return;
         if (get().ready) return;
         if (get().tasks.length === 0) {
           const s = buildSeed(new Date());
@@ -304,7 +363,18 @@ export const useStore = create<State>()(
     }),
     {
       name: "control-room-v1",
-      partialize: ({ ready: _ready, ...rest }) => rest,
+      /**
+       * Only the signed-out demo is written to localStorage. A real account's
+       * tasks must never be left behind on a shared or borrowed browser — and
+       * if they were, the next person to sign in here would start from a stale
+       * blob of someone else's week before the server response landed.
+       */
+      partialize: (state) =>
+        state.mode === "cloud"
+          ? ({ mode: "cloud" } as unknown as State)
+          : (({ ready: _ready, syncStatus: _s, syncMessage: _m, ...rest }) => rest)(
+              state,
+            ),
     },
   ),
 );
