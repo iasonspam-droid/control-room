@@ -4,6 +4,7 @@ import {
   CalendarApiError,
   createEvent,
   deleteEvent,
+  listEvents,
   updateEvent,
 } from "@/lib/google-calendar";
 
@@ -106,6 +107,61 @@ async function loadTask(userId: string, taskId: string) {
       calendarEventId: true,
     },
   });
+}
+
+/**
+ * GET — the user's real calendar, read-only, for display alongside their
+ * planned blocks. All-day events are dropped: neither Today nor Week has an
+ * all-day strip, so there's nowhere on the hour grid to put one.
+ */
+export async function GET(request: Request): Promise<Response> {
+  const authorized = await authorize();
+  if (authorized instanceof Response) return authorized;
+
+  const url = new URL(request.url);
+  const timeMin = url.searchParams.get("timeMin");
+  const timeMax = url.searchParams.get("timeMax");
+  const calendarId = url.searchParams.get("calendarId") ?? undefined;
+  const exclude = new Set(
+    (url.searchParams.get("exclude") ?? "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
+
+  if (!timeMin || !timeMax) {
+    return json(
+      {
+        error: "invalid_request",
+        message: "timeMin and timeMax are required ISO timestamps.",
+      },
+      400,
+    );
+  }
+
+  try {
+    const events = await listEvents(
+      authorized.accessToken,
+      { timeMin, timeMax },
+      calendarId,
+    );
+
+    const visible = events
+      .filter((e) => e.status !== "cancelled")
+      .filter((e) => e.start?.dateTime && e.end?.dateTime)
+      .filter((e) => !exclude.has(e.id))
+      .map((e) => ({
+        id: e.id,
+        summary: e.summary ?? "(untitled)",
+        start: e.start!.dateTime!,
+        end: e.end!.dateTime!,
+        htmlLink: e.htmlLink,
+      }));
+
+    return json({ events: visible });
+  } catch (error) {
+    return calendarFailure(error);
+  }
 }
 
 /** POST — write a new block onto the calendar and return its event id. */

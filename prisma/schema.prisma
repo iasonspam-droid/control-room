@@ -46,6 +46,9 @@ model User {
   xpEvents   XpEvent[]
   profile    Profile?
   streak     Streak?
+
+  dailySnapshots  DailySnapshot[]
+  weeklySnapshots WeeklySnapshot[]
 }
 
 model Account {
@@ -207,6 +210,14 @@ model Profile {
   remindLeadMin    Int     @default(10)
   calendarConnected Boolean @default(false)
   calendarId       String?
+  /// CalendarRule[] — keyword, colour, and the category it counts toward. A
+  /// small ordered config list rather than a table: it is only ever read and
+  /// written whole, and it rides the existing profile sync for free.
+  calendarRules    Json    @default("[]")
+  /// Colour for calendar events no rule claims — the MISCELLANEOUS bucket.
+  calendarMiscColor String?
+  /// Google Calendar event ids the user ticked off as actually done.
+  completedEventIds String[] @default([])
   // Lifetime XP total. It lives on the profile because it is a single per-user
   // scalar, and XpEvent is only the recent-activity feed, not the ledger of record.
   xp               Int     @default(0)
@@ -248,5 +259,60 @@ model Streak {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// History
+//
+// The daily and weekly counters on the dashboard start at zero every period.
+// These two tables are why that costs you nothing: a finished day or week is
+// written here once, permanently, and the running counter is free to reset.
+//
+// Rows are only ever written for periods that have completely ended, and are
+// never rewritten — which is also why there is no "personal records" table.
+// A best-ever is MAX() over immutable rows, and a derived record can't drift
+// out of sync with the history it claims to summarise.
+// ---------------------------------------------------------------------------
+
+model DailySnapshot {
+  id     String @id @default(cuid())
+  userId String
+  // YYYY-MM-DD, local — same convention as LogEntry.date.
+  date   String
+
+  xp              Int
+  productivityPct Float
+  realityScorePct Float
+  tasksCompleted  Int
+  // Record<categoryId, minutes> — kept as JSON because categories are
+  // user-defined and a column per category is not a thing that can exist.
+  minutesByCategory Json
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+model WeeklySnapshot {
+  id     String @id @default(cuid())
+  userId String
+  // YYYY-MM-DD of the week's first day, per the profile's weekStartsOn.
+  weekStart String
+
+  xp              Int
+  productivityPct Float
+  realityScorePct Float
+  tasksCompleted  Int
+  minutesByCategory Json
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekStart])
   @@index([userId])
 }

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { databaseConfigured, prisma } from "@/lib/db";
 import type { XpEvent } from "@/lib/store";
 import type {
+  CalendarRule,
   CatColor,
   Category,
   Goal,
@@ -143,6 +144,10 @@ export async function GET(): Promise<Response> {
           remindLeadMin: profile.remindLeadMin,
           calendarConnected: profile.calendarConnected,
           calendarId: profile.calendarId ?? undefined,
+          calendarRules: (profile.calendarRules as CalendarRule[] | null) ?? [],
+          calendarMiscColor:
+            (profile.calendarMiscColor as CatColor | null) ?? undefined,
+          completedEventIds: profile.completedEventIds ?? [],
         }
       : { ...DEFAULT_PROFILE, name: session.user?.name ?? "" },
     streak: streak
@@ -373,6 +378,10 @@ export async function PUT(request: Request): Promise<Response> {
           remindLeadMin: profile.remindLeadMin,
           calendarConnected: profile.calendarConnected,
           calendarId: profile.calendarId ?? null,
+          calendarRules: (profile.calendarRules ??
+            []) as unknown as Prisma.InputJsonValue,
+          calendarMiscColor: profile.calendarMiscColor ?? null,
+          completedEventIds: profile.completedEventIds ?? [],
           xp,
         };
         await tx.profile.upsert({

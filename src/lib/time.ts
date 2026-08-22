@@ -1,6 +1,7 @@
 import {
   addDays,
   differenceInMinutes,
+  endOfDay,
   endOfWeek,
   format,
   parseISO,
@@ -24,6 +25,20 @@ export function weekBounds(d: Date, weekStartsOn: 0 | 1 = 1) {
 export function weekDays(d: Date, weekStartsOn: 0 | 1 = 1): Date[] {
   const { start } = weekBounds(d, weekStartsOn);
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
+
+/** ISO bounds of a single day — the query range for that day's external events. */
+export function dayRange(day: Date): { timeMin: string; timeMax: string } {
+  return { timeMin: startOfDay(day).toISOString(), timeMax: endOfDay(day).toISOString() };
+}
+
+/** ISO bounds of a week — the query range for the Week view's external events. */
+export function weekRange(
+  ref: Date,
+  weekStartsOn: 0 | 1 = 1,
+): { timeMin: string; timeMax: string } {
+  const { start, end } = weekBounds(ref, weekStartsOn);
+  return { timeMin: start.toISOString(), timeMax: end.toISOString() };
 }
 
 /** Minutes from local midnight — the unit the timeline is drawn in. */

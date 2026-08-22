@@ -5,8 +5,22 @@ import { useSession } from "next-auth/react";
 import { useStore } from "@/lib/store";
 import { pullState, pushState, type SyncState } from "@/lib/sync-client";
 import { buildStarter } from "@/lib/starter";
+import { dayKey } from "@/lib/time";
 
 const SAVE_DEBOUNCE_MS = 1200;
+
+/**
+ * Ask the server to file away any day or week that ended while we weren't
+ * looking. Fire-and-forget: nothing on screen waits on it, and a failure just
+ * means the rows get written on the next load instead.
+ */
+function closeElapsedPeriods(weekStartsOn: 0 | 1) {
+  void fetch("/api/snapshots", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ today: dayKey(new Date()), weekStartsOn }),
+  }).catch(() => {});
+}
 
 function snapshot(): SyncState {
   const s = useStore.getState();
@@ -89,6 +103,7 @@ export function CloudSync() {
             events: result.state.events ?? [],
           });
           setSync("idle");
+          closeElapsedPeriods(result.state.profile?.weekStartsOn ?? 1);
         }
         return;
       }
@@ -104,6 +119,11 @@ export function CloudSync() {
 
     return () => {
       cancelled = true;
+      // Undo the "already loading for this user" marker too — otherwise a second
+      // mount (React Strict Mode in dev deliberately mounts twice) sees it still
+      // set, assumes a fetch is already in flight, and never starts its own. The
+      // first (cancelled) fetch's real result then has nowhere to land.
+      if (loadedFor.current === userId) loadedFor.current = null;
     };
   }, [userId, status, adoptRemote, releaseRemote, setSync, session?.user?.name]);
 

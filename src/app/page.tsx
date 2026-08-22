@@ -62,7 +62,7 @@ export default async function Landing() {
               {session?.user ? (
                 <>
                   <Link
-                    href="/today"
+                    href="/dashboard"
                     className="btn btn-signal flex items-center gap-2 !px-5 !py-3"
                   >
                     Continue to your planner
@@ -76,7 +76,7 @@ export default async function Landing() {
                 <>
                   <SignInButton />
                   <Link
-                    href="/today"
+                    href="/dashboard"
                     className="btn flex items-center gap-2 self-start !px-5 !py-3"
                   >
                     Look around with sample data
@@ -85,7 +85,7 @@ export default async function Landing() {
                 </>
               ) : (
                 <Link
-                  href="/today"
+                  href="/dashboard"
                   className="btn btn-signal flex items-center gap-2 !px-5 !py-3"
                 >
                   Open the planner

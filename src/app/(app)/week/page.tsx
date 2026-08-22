@@ -11,8 +11,16 @@ import {
 } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { catColor, tasksOnDay, weekMinutes } from "@/lib/derive";
-import { weekDays } from "@/lib/time";
+import {
+  CAT_VAR,
+  catColor,
+  eventsOnDay,
+  tasksOnDay,
+  weekMinutes,
+} from "@/lib/derive";
+import { resolveEventStyle } from "@/lib/calendar-category";
+import { fmtRange, weekDays, weekRange } from "@/lib/time";
+import { useGoogleCalendarEvents } from "@/lib/use-google-calendar-events";
 
 export default function WeekPage() {
   const { tasks, categories, profile, completeTask } = useStore();
@@ -20,6 +28,22 @@ export default function WeekPage() {
   const ref = useMemo(() => addWeeks(new Date(), offset), [offset]);
   const days = weekDays(ref, profile.weekStartsOn);
   const today = new Date();
+
+  const rules = profile.calendarRules ?? [];
+  const miscColor = profile.calendarMiscColor;
+  const excludeIds = useMemo(
+    () => tasks.filter((t) => t.calendarEventId).map((t) => t.calendarEventId!),
+    [tasks],
+  );
+  const { timeMin, timeMax } = useMemo(
+    () => weekRange(ref, profile.weekStartsOn),
+    [ref, profile.weekStartsOn],
+  );
+  const { events: externalEvents } = useGoogleCalendarEvents(
+    timeMin,
+    timeMax,
+    excludeIds,
+  );
 
   const { dayStartHour: h0, dayEndHour: h1 } = profile;
   const hours = Array.from({ length: h1 - h0 + 1 }, (_, i) => h0 + i);
@@ -123,6 +147,38 @@ export default function WeekPage() {
               />
             ))}
             {isSameDay(d, today) && <NowLine h0={h0} h1={h1} />}
+            {/* real calendar, read-only — never clickable, never part of load math */}
+            {eventsOnDay(externalEvents, d).map((e) => {
+              const start = parseISO(e.start);
+              const span = (h1 - h0) * 60;
+              const top =
+                ((differenceInMinutes(start, startOfDay(start)) - h0 * 60) /
+                  span) *
+                100;
+              const height =
+                (differenceInMinutes(parseISO(e.end), start) / span) * 100;
+              const style = resolveEventStyle(e.summary, rules, miscColor);
+              const stroke = CAT_VAR[style.color];
+              return (
+                <div
+                  key={e.id}
+                  title={`${e.summary} · ${fmtRange(e.start, e.end)} · ${style.label}`}
+                  className="pointer-events-none absolute left-[2px] right-[2px] overflow-hidden border border-dashed bg-transparent px-1.5 py-0.5"
+                  style={{
+                    top: `${top}%`,
+                    height: `calc(${height}% - 2px)`,
+                    borderColor: stroke,
+                  }}
+                >
+                  <span
+                    className="line-clamp-3 text-[14px] leading-[1.25]"
+                    style={{ color: stroke }}
+                  >
+                    {e.summary}
+                  </span>
+                </div>
+              );
+            })}
             {tasksOnDay(tasks, d).map((t) => {
               const start = parseISO(t.scheduledStart!);
               const span = (h1 - h0) * 60;
@@ -155,7 +211,7 @@ export default function WeekPage() {
                     }}
                   />
                   <span
-                    className={`min-w-0 flex-1 px-1.5 py-0.5 text-[10px] leading-[1.25] ${
+                    className={`min-w-0 flex-1 px-1.5 py-0.5 text-[14px] leading-[1.25] ${
                       done
                         ? "text-mute line-through decoration-line-hot"
                         : "text-dim"

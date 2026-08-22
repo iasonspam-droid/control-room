@@ -4,10 +4,11 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 
+// Keep in step with NAV in Rail.tsx — that is where the digits are advertised.
 const KEYS: Record<string, string> = {
-  "1": "/today",
-  "2": "/week",
-  "3": "/matrix",
+  "1": "/dashboard",
+  "2": "/today",
+  "3": "/week",
   "4": "/log",
   "5": "/recap",
 };

@@ -128,7 +128,7 @@ export default function TodayPage() {
                     {t.title}
                   </span>
                   <span className="t-num shrink-0 text-[10px] text-cool">
-                    +{taskXp(t.actualMin ?? t.estimateMin, t.quadrant)}
+                    +{taskXp(t.actualMin ?? t.estimateMin)}
                   </span>
                 </li>
               ))}

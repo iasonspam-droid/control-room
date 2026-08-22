@@ -9,15 +9,17 @@ import {
 } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { catColor, weekMinutes } from "@/lib/derive";
+import {
+  catColor,
+  realityScorePct,
+  taskRealityBlocks,
+  weekMinutes,
+} from "@/lib/derive";
 import { weekBounds, weekDays, fmtDuration } from "@/lib/time";
-import { QUADRANT_META, taskXp } from "@/lib/xp";
-import type { Quadrant } from "@/lib/types";
-
-const QS: Quadrant[] = ["q1", "q2", "q3", "q4"];
+import { xpInRange } from "@/lib/xp";
 
 export default function RecapPage() {
-  const { tasks, categories, log, streak, profile } = useStore();
+  const { tasks, categories, log, streak, profile, events } = useStore();
   const [offset, setOffset] = useState(0);
   const ref = useMemo(() => addWeeks(new Date(), offset), [offset]);
   const { start, end } = weekBounds(ref, profile.weekStartsOn);
@@ -33,23 +35,19 @@ export default function RecapPage() {
     (a, t) => a + (t.actualMin ?? t.estimateMin),
     0,
   );
-  const xp = doneThisWeek.reduce(
-    (a, t) => a + taskXp(t.actualMin ?? t.estimateMin, t.quadrant),
-    0,
-  );
+  /* Every award in the window, not just finished tasks — log entries and
+     cleared goals are XP you earned this week too, and counting only tasks
+     here would put a different number on this page than on the dashboard. */
+  const xp = xpInRange(events, start, end);
   const per = weekMinutes(tasks, ref, profile.weekStartsOn);
   const targetMin = categories.reduce(
     (a, c) => a + c.weeklyTargetHours * 60,
     0,
   );
 
-  const byQuadrant = QS.map((q) => {
-    const mins = doneThisWeek
-      .filter((t) => t.quadrant === q)
-      .reduce((a, t) => a + (t.actualMin ?? t.estimateMin), 0);
-    return { q, mins, share: bankedMin ? mins / bankedMin : 0 };
-  });
-  const q2Share = byQuadrant.find((b) => b.q === "q2")!.share;
+  /* Task blocks only — a past week's calendar events aren't refetched here,
+     for the same reason the stored snapshots don't hold them. */
+  const reality = realityScorePct(taskRealityBlocks(tasks, start, end));
 
   const days = weekDays(ref, profile.weekStartsOn).map((d) => {
     const mins = doneThisWeek
@@ -96,7 +94,7 @@ export default function RecapPage() {
 
         {/* the verdict — one opinionated sentence, generated from the numbers */}
         <p className="border-b border-line py-5 text-[16px] leading-relaxed text-text">
-          {verdict(bankedMin, targetMin, q2Share, doneThisWeek.length, entries.length)}
+          {verdict(bankedMin, targetMin, reality, doneThisWeek.length, entries.length)}
         </p>
 
         {/* four figures, unequal weight — hours is the headline */}
@@ -176,52 +174,6 @@ export default function RecapPage() {
           </section>
 
           <div className="space-y-8">
-            {/* quadrant split */}
-            <section>
-              <h2 className="t-label border-b border-line pb-2">
-                Quadrant split
-              </h2>
-              <div className="flex h-[10px] w-full">
-                {byQuadrant.map(({ q, share }) => (
-                  <div
-                    key={q}
-                    className={
-                      q === "q2"
-                        ? "bg-signal"
-                        : q === "q1"
-                          ? "bg-signal-dim"
-                          : q === "q3"
-                            ? "bg-line-hot"
-                            : "bg-line"
-                    }
-                    style={{ width: `${share * 100}%` }}
-                    title={`${QUADRANT_META[q].key} ${Math.round(share * 100)}%`}
-                  />
-                ))}
-              </div>
-              <ul className="mt-3 space-y-1.5">
-                {byQuadrant.map(({ q, mins, share }) => (
-                  <li key={q} className="flex items-baseline gap-2">
-                    <span
-                      className={`t-num w-6 text-[11px] ${
-                        q === "q2" ? "text-signal" : "text-mute"
-                      }`}
-                    >
-                      {QUADRANT_META[q].key}
-                    </span>
-                    <span className="flex-1 text-[12px] text-dim">
-                      {QUADRANT_META[q].blurb}
-                    </span>
-                    <span className="t-num text-[11px] text-mute">
-                      {fmtDuration(mins)}
-                    </span>
-                    <span className="t-num w-9 text-right text-[11px]">
-                      {Math.round(share * 100)}%
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
 
             {/* day shape */}
             <section>
@@ -298,24 +250,32 @@ function Figure({
   );
 }
 
-/** One sentence, chosen by the numbers. Never congratulatory by default. */
+/**
+ * One sentence, chosen by the numbers. Never congratulatory by default.
+ *
+ * Reality is the more interesting half of the pair: hours tell you how much
+ * you did, reality tells you whether it was the thing you said you'd do, and
+ * the gap between them is where the useful sentence usually is.
+ */
 function verdict(
   banked: number,
   target: number,
-  q2Share: number,
+  reality: number,
   cleared: number,
   entries: number,
 ): string {
   const pct = target ? banked / target : 0;
   if (cleared === 0)
-    return "Nothing cleared this week. That happens — the only thing worth doing now is booking one Q2 block for tomorrow and letting the streak restart from there.";
-  if (pct >= 0.95 && q2Share >= 0.4)
-    return `You hit your hours and spent ${Math.round(q2Share * 100)}% of them on work that wasn't due yet. That's the shape you want; the hard part is doing it again when nothing is on fire.`;
-  if (pct >= 0.95)
-    return `Hours are there, but only ${Math.round(q2Share * 100)}% went to Q2 — the week ran on urgency. Try booking the important-not-urgent block first next week and letting Q1 fill in around it.`;
-  if (q2Share >= 0.5)
-    return `Short on hours at ${Math.round(pct * 100)}% of target, but the hours you did put in were the right ones — half of them Q2. Quality over volume is a fine trade for one week, not for three.`;
+    return "Nothing cleared this week. That happens — the only thing worth doing now is booking one block for tomorrow and letting the streak restart from there.";
+  if (pct >= 0.95 && reality >= 85)
+    return `You hit your hours and kept ${reality}% of what you actually planned. That's the shape you want; the hard part is doing it again when nothing is on fire.`;
+  if (pct >= 0.95 && reality < 60)
+    return `The hours are there, but only ${reality}% of them went to what you'd actually booked. Plenty of work, mostly unplanned — worth asking whether the plan is wrong or the week keeps hijacking it.`;
+  if (reality >= 85)
+    return `Short on hours at ${Math.round(pct * 100)}% of target, but you kept ${reality}% of what you booked. A small plan honoured beats a big one abandoned — the fix is to book more, not to try harder.`;
+  if (reality > 0 && reality < 50)
+    return `${Math.round(pct * 100)}% of target and only ${reality}% of your plan survived contact with the week. Either the blocks are too big or they're in the wrong place; shrink one and move it earlier before next Monday.`;
   if (entries >= 5)
     return `${Math.round(pct * 100)}% of target with ${entries} log entries — you kept the record even when the hours didn't come. Read them back before you plan next week; the reason is usually in there.`;
-  return `${Math.round(pct * 100)}% of target, ${cleared} tasks cleared, ${Math.round(q2Share * 100)}% of it Q2. Middling week. Pick the one category that fell furthest short and book it before anything else next Monday.`;
+  return `${Math.round(pct * 100)}% of target, ${cleared} tasks cleared, ${reality}% of the plan kept. Middling week. Pick the one category that fell furthest short and book it before anything else next Monday.`;
 }

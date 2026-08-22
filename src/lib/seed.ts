@@ -1,5 +1,8 @@
 import { addDays, startOfWeek, subDays } from "date-fns";
 import { atHour, dayKey } from "./time";
+import { DEFAULT_MISC_COLOR } from "./calendar-category";
+import { STARTER_CALENDAR_RULES } from "./starter";
+import { LOG_ENTRY_XP, taskXp } from "./xp";
 import type {
   Category,
   Goal,
@@ -9,18 +12,29 @@ import type {
   Task,
 } from "./types";
 
+/** Matches XpEvent in store.ts — declared here to keep the import one-way. */
+interface SeedXpEvent {
+  id: string;
+  at: string;
+  amount: number;
+  label: string;
+  kind: "task" | "log" | "goal";
+}
+
 /**
  * Seed data is deliberately real: these are the actual categories, courses and
  * research threads this is being built for. Nothing here says "Category One".
  */
 
 export const SEED_CATEGORIES: Category[] = [
-  { id: "phys", name: "Physics H + HSR", short: "PHYS", color: "olive", weeklyTargetHours: 6 },
-  { id: "ml", name: "ML research", short: "ML", color: "teal", weeklyTargetHours: 5 },
-  { id: "math", name: "Pre-calc H", short: "MATH", color: "amber", weeklyTargetHours: 4 },
-  { id: "hum", name: "AP Lang + APUSH", short: "HUM", color: "plum", weeklyTargetHours: 5 },
-  { id: "cs", name: "AP CS", short: "CS", color: "steel", weeklyTargetHours: 3 },
-  { id: "sat", name: "SAT + college", short: "SAT", color: "clay", weeklyTargetHours: 3 },
+  {
+    id: "school",
+    name: "School",
+    short: "SCHOOL",
+    color: "olive",
+    weeklyTargetHours: 16,
+  },
+  { id: "ecs", name: "ECs", short: "ECS", color: "teal", weeklyTargetHours: 10 },
 ];
 
 export const SEED_PROFILE: Profile = {
@@ -31,6 +45,8 @@ export const SEED_PROFILE: Profile = {
   remindersEnabled: true,
   remindLeadMin: 10,
   calendarConnected: false,
+  calendarRules: STARTER_CALENDAR_RULES,
+  calendarMiscColor: DEFAULT_MISC_COLOR,
 };
 
 let n = 0;
@@ -59,7 +75,7 @@ export function buildSeed(now: Date) {
     /* ── today, scheduled ─────────────────────────────────── */
     mk({
       title: "Rotational dynamics — problems 1–18",
-      categoryId: "phys",
+      categoryId: "school",
       quadrant: "q1",
       estimateMin: 60,
       status: "done",
@@ -69,7 +85,7 @@ export function buildSeed(now: Date) {
     }),
     mk({
       title: "APUSH ch. 14 — reading + margin notes",
-      categoryId: "hum",
+      categoryId: "school",
       quadrant: "q1",
       estimateMin: 45,
       status: "done",
@@ -78,7 +94,7 @@ export function buildSeed(now: Date) {
     }),
     mk({
       title: "Gamma analysis — rerun DVH feature extraction",
-      categoryId: "ml",
+      categoryId: "ecs",
       quadrant: "q2",
       estimateMin: 90,
       status: "open",
@@ -89,7 +105,7 @@ export function buildSeed(now: Date) {
     }),
     mk({
       title: "AP Lang — rhetorical analysis draft",
-      categoryId: "hum",
+      categoryId: "school",
       quadrant: "q2",
       estimateMin: 60,
       status: "open",
@@ -97,7 +113,7 @@ export function buildSeed(now: Date) {
     }),
     mk({
       title: "Unit circle problem set",
-      categoryId: "math",
+      categoryId: "school",
       quadrant: "q1",
       estimateMin: 45,
       status: "open",
@@ -107,7 +123,7 @@ export function buildSeed(now: Date) {
     /* ── today, unscheduled queue ─────────────────────────── */
     mk({
       title: "HSR — rewrite Discussion stats paragraph (two-way ANOVA)",
-      categoryId: "phys",
+      categoryId: "ecs",
       quadrant: "q2",
       estimateMin: 75,
       status: "open",
@@ -116,14 +132,14 @@ export function buildSeed(now: Date) {
     }),
     mk({
       title: "ArrayList lab — finish the Simon refactor",
-      categoryId: "cs",
+      categoryId: "school",
       quadrant: "q2",
       estimateMin: 60,
       status: "open",
     }),
     mk({
       title: "Timed SAT reading section + review misses",
-      categoryId: "sat",
+      categoryId: "school",
       quadrant: "q2",
       estimateMin: 55,
       status: "open",
@@ -131,21 +147,21 @@ export function buildSeed(now: Date) {
     }),
     mk({
       title: "Chase Journalism photo credits before layout",
-      categoryId: "hum",
+      categoryId: "ecs",
       quadrant: "q3",
       estimateMin: 20,
       status: "open",
     }),
     mk({
       title: "Reorganise the Drive folders",
-      categoryId: "cs",
+      categoryId: "school",
       quadrant: "q4",
       estimateMin: 30,
       status: "open",
     }),
     mk({
       title: "Email Yves about the IBA observation write-up",
-      categoryId: "phys",
+      categoryId: "ecs",
       quadrant: "q1",
       estimateMin: 15,
       status: "open",
@@ -155,7 +171,7 @@ export function buildSeed(now: Date) {
           collides with the blocks already on today) ────────── */
     mk({
       title: "Chang group Zoom",
-      categoryId: "ml",
+      categoryId: "ecs",
       quadrant: "q1",
       estimateMin: 60,
       status: "open",
@@ -163,7 +179,7 @@ export function buildSeed(now: Date) {
     }),
     mk({
       title: "Physics H — lab write-up",
-      categoryId: "phys",
+      categoryId: "school",
       quadrant: "q1",
       estimateMin: 75,
       status: "open",
@@ -171,7 +187,7 @@ export function buildSeed(now: Date) {
     }),
     mk({
       title: "Gamma analysis — energy-split plots for Chang",
-      categoryId: "ml",
+      categoryId: "ecs",
       quadrant: "q2",
       estimateMin: 90,
       status: "open",
@@ -180,7 +196,7 @@ export function buildSeed(now: Date) {
     }),
     mk({
       title: "SAT webinar",
-      categoryId: "sat",
+      categoryId: "school",
       quadrant: "q3",
       estimateMin: 60,
       status: "open",
@@ -188,7 +204,7 @@ export function buildSeed(now: Date) {
     }),
     mk({
       title: "APUSH DBQ practice, timed",
-      categoryId: "hum",
+      categoryId: "school",
       quadrant: "q2",
       estimateMin: 60,
       status: "open",
@@ -196,7 +212,7 @@ export function buildSeed(now: Date) {
     }),
     mk({
       title: "Pre-calc — trig identities review",
-      categoryId: "math",
+      categoryId: "school",
       quadrant: "q2",
       estimateMin: 45,
       status: "open",
@@ -204,7 +220,7 @@ export function buildSeed(now: Date) {
     }),
     mk({
       title: "HSR — figure 3 remake at 300 dpi",
-      categoryId: "phys",
+      categoryId: "ecs",
       quadrant: "q2",
       estimateMin: 60,
       status: "open",
@@ -213,7 +229,7 @@ export function buildSeed(now: Date) {
     }),
     mk({
       title: "Full SAT practice test",
-      categoryId: "sat",
+      categoryId: "school",
       quadrant: "q2",
       estimateMin: 180,
       status: "open",
@@ -229,7 +245,7 @@ export function buildSeed(now: Date) {
     {
       id: "g-hsr",
       title: "HSR paper — Discussion section",
-      categoryId: "phys",
+      categoryId: "ecs",
       target: 5,
       current: 3,
       unit: "subsections",
@@ -238,7 +254,7 @@ export function buildSeed(now: Date) {
     {
       id: "g-gamma",
       title: "Gamma-analysis model v2",
-      categoryId: "ml",
+      categoryId: "ecs",
       target: 10,
       current: 6,
       unit: "experiments",
@@ -247,7 +263,7 @@ export function buildSeed(now: Date) {
     {
       id: "g-sat",
       title: "SAT practice tests before November",
-      categoryId: "sat",
+      categoryId: "school",
       target: 8,
       current: 2,
       unit: "tests",
@@ -288,7 +304,33 @@ export function buildSeed(now: Date) {
     frozenDates: [dayKey(subDays(now, 3))],
   };
 
-  return { tasks, goals, log, streak, xp: 2140 };
+  /**
+   * The XP feed the demo's own history implies.
+   *
+   * Derived rather than hand-written: the dashboard reads today's and this
+   * week's XP off these timestamps, so a feed that didn't match the completed
+   * tasks would show a zero next to a full day's work and read as broken.
+   */
+  const events: SeedXpEvent[] = [
+    ...tasks
+      .filter((t) => t.status === "done" && t.completedAt)
+      .map((t) => ({
+        id: id("x"),
+        at: t.completedAt!,
+        amount: taskXp(t.actualMin ?? t.estimateMin),
+        label: t.title,
+        kind: "task" as const,
+      })),
+    ...log.map((l) => ({
+      id: id("x"),
+      at: l.createdAt ?? new Date(`${l.date}T20:00:00`).toISOString(),
+      amount: LOG_ENTRY_XP,
+      label: "Log entry",
+      kind: "log" as const,
+    })),
+  ].sort((a, b) => b.at.localeCompare(a.at));
+
+  return { tasks, goals, log, streak, events, xp: 2140 };
 }
 
 function bankedEarlierThisWeek(
@@ -299,14 +341,14 @@ function bankedEarlierThisWeek(
 ): Task[] {
   const out: Task[] = [];
   const plan: [number, string, string, Task["quadrant"], number, number][] = [
-    [0, "Pre-calc — sequences problem set", "math", "q1", 45, 16],
-    [0, "AP Lang — annotate Didion essay", "hum", "q2", 50, 18],
-    [0, "Physics H — kinematics review", "phys", "q1", 60, 20],
-    [1, "Gamma analysis — clean the plan export", "ml", "q2", 90, 15],
-    [1, "APUSH — Ch. 13 outline", "hum", "q1", 45, 19],
-    [2, "AP CS — recursion worksheet", "cs", "q2", 60, 17],
-    [2, "HSR — statistics rewrite pass 1", "phys", "q2", 75, 19],
-    [3, "Pre-calc — quiz corrections", "math", "q1", 30, 16],
+    [0, "Pre-calc — sequences problem set", "school", "q1", 45, 16],
+    [0, "AP Lang — annotate Didion essay", "school", "q2", 50, 18],
+    [0, "Physics H — kinematics review", "school", "q1", 60, 20],
+    [1, "Gamma analysis — clean the plan export", "ecs", "q2", 90, 15],
+    [1, "APUSH — Ch. 13 outline", "school", "q1", 45, 19],
+    [2, "AP CS — recursion worksheet", "school", "q2", 60, 17],
+    [2, "HSR — statistics rewrite pass 1", "ecs", "q2", 75, 19],
+    [3, "Pre-calc — quiz corrections", "school", "q1", 30, 16],
   ];
   for (const [offset, title, categoryId, quadrant, len, hour] of plan) {
     const day = new Date(monday);

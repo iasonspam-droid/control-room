@@ -6,7 +6,7 @@ import { getISOWeek } from "date-fns";
 import { signOut, useSession } from "next-auth/react";
 import {
   CalendarRange,
-  Grid2x2,
+  Gauge,
   type LucideIcon,
   LogOut,
   NotebookPen,
@@ -17,10 +17,11 @@ import {
 import { useStore } from "@/lib/store";
 import { levelProgress, rankForLevel } from "@/lib/xp";
 
+// Keep in step with KEYS in Boot.tsx — that is where the digits actually route.
 const NAV: { href: string; label: string; icon: LucideIcon; key: string }[] = [
-  { href: "/today", label: "Today", icon: Sun, key: "1" },
-  { href: "/week", label: "Week", icon: CalendarRange, key: "2" },
-  { href: "/matrix", label: "Matrix", icon: Grid2x2, key: "3" },
+  { href: "/dashboard", label: "Dashboard", icon: Gauge, key: "1" },
+  { href: "/today", label: "Today", icon: Sun, key: "2" },
+  { href: "/week", label: "Week", icon: CalendarRange, key: "3" },
   { href: "/log", label: "Log", icon: NotebookPen, key: "4" },
   { href: "/recap", label: "Recap", icon: Radio, key: "5" },
 ];

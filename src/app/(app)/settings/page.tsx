@@ -2,12 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Plus, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { CAT_VAR } from "@/lib/derive";
-import type { CatColor } from "@/lib/types";
+import {
+  DEFAULT_MISC_COLOR,
+  MISC_LABEL,
+  RULE_COLORS,
+} from "@/lib/calendar-category";
+import type { CalendarRule, CatColor } from "@/lib/types";
 
-const COLORS: CatColor[] = ["amber", "clay", "olive", "teal", "steel", "plum"];
+const COLORS = RULE_COLORS;
 
 /** Labels sit in the left margin; controls run down a single measure. */
 function Row({
@@ -70,6 +75,25 @@ export default function SettingsPage() {
       .then(setStatus)
       .catch(() => setStatus({ authConfigured: false, databaseConfigured: false, google: false }));
   }, []);
+
+  const rules = profile.calendarRules ?? [];
+  const miscColor = profile.calendarMiscColor ?? DEFAULT_MISC_COLOR;
+
+  /** Patch one rule in place — order is match order, so it has to be stable. */
+  function setRule(index: number, patch: Partial<CalendarRule>) {
+    setProfile({
+      calendarRules: rules.map((r, i) => (i === index ? { ...r, ...patch } : r)),
+    });
+  }
+
+  /** Reorder is the priority control: position in the list is precedence. */
+  function moveRule(index: number, delta: number) {
+    const to = index + delta;
+    if (to < 0 || to >= rules.length) return;
+    const next = [...rules];
+    [next[index], next[to]] = [next[to], next[index]];
+    setProfile({ calendarRules: next });
+  }
 
   async function askNotify() {
     if (typeof Notification === "undefined") return;
@@ -145,8 +169,9 @@ export default function SettingsPage() {
                 {categories.map((c) => (
                   <li
                     key={c.id}
-                    className="group flex items-center gap-2 border-b border-line py-2 first:border-t first:border-line"
+                    className="group border-b border-line py-2 first:border-t first:border-line"
                   >
+                    <div className="flex items-center gap-2">
                     <span
                       className="h-5 w-[3px] shrink-0"
                       style={{ background: CAT_VAR[c.color] }}
@@ -202,6 +227,7 @@ export default function SettingsPage() {
                     >
                       <Trash2 size={13} strokeWidth={1.5} />
                     </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -229,28 +255,35 @@ export default function SettingsPage() {
 
           <Section title="Scoring">
             <Row
-              label="Quadrant rates"
-              hint="Fixed. Q2 pays most on purpose — see the note on the Matrix screen."
+              label="XP rate"
+              hint="Fixed, and the same for every task. Time is the one input here that isn't a judgement call, so it is the only thing XP counts — a log entry is a flat 15, a finished goal 100."
             >
               <div className="flex gap-6">
-                {[
-                  ["Q1", "1.0×"],
-                  ["Q2", "1.5×"],
-                  ["Q3", "0.6×"],
-                  ["Q4", "0.3×"],
-                ].map(([k, v]) => (
-                  <div key={k}>
-                    <div className="t-label">{k}</div>
-                    <div
-                      className={`t-num mt-1 text-[15px] ${
-                        k === "Q2" ? "text-signal" : "text-dim"
-                      }`}
-                    >
-                      {v}
-                    </div>
-                  </div>
-                ))}
+                <div>
+                  <div className="t-label">Per 15 min</div>
+                  <div className="t-num mt-1 text-[15px] text-signal">5 xp</div>
+                </div>
+                <div>
+                  <div className="t-label">Per hour</div>
+                  <div className="t-num mt-1 text-[15px] text-dim">20 xp</div>
+                </div>
               </div>
+            </Row>
+            <Row
+              label="Reality score"
+              hint="Of the time you actually planned — booked blocks plus any calendar event matched by a rule below — how much did you do? Weighted by length, so a missed four-hour block costs more than a missed fifteen-minute one. Partial counts: 90 minutes of a two-hour block is 75%."
+            >
+              <span className="font-mono text-[11px] text-mute">
+                done ÷ planned, by the minute
+              </span>
+            </Row>
+            <Row
+              label="Productivity"
+              hint="Of your whole working window above, how much became work — scheduled or not. Reality asks whether you kept the plan; this asks how much of the day you used. They move independently on purpose."
+            >
+              <span className="font-mono text-[11px] text-mute">
+                worked ÷ working window
+              </span>
             </Row>
             <Row
               label="Streak freezes"
@@ -394,9 +427,161 @@ export default function SettingsPage() {
               )}
               <p className="mt-3 max-w-lg text-[11px] leading-relaxed text-mute">
                 Scopes requested: <span className="font-mono">calendar.events</span>{" "}
-                (read and write) and basic profile. Nothing else is read, and no
-                event you didn&apos;t create here is ever modified.
+                (read and write) and basic profile. Your primary calendar&rsquo;s
+                events are read to show alongside your planned blocks in Today
+                and Week — for display only. No event you didn&apos;t create
+                here is ever modified.
               </p>
+            </Row>
+
+            <Row
+              label="Calendar rules"
+              hint="A keyword colours any event whose title contains it — “physics” catches “AP Physics 1 — Unit 2”. Matching ignores case and looks anywhere in the title. Rules are checked top to bottom and the first hit wins, so drag the specific words above the general ones with the arrows. The category decides whether that time counts toward your reality score; leave it on “don't count” for things you want to see but not be scored on."
+            >
+              <ul>
+                {rules.map((r, i) => (
+                  <li
+                    key={r.id}
+                    className="group flex items-center gap-2 border-b border-line py-2 first:border-t first:border-line"
+                  >
+                    <span className="t-num w-4 shrink-0 text-[10px] text-mute">
+                      {i + 1}
+                    </span>
+                    <div className="flex shrink-0 flex-col">
+                      <button
+                        onClick={() => moveRule(i, -1)}
+                        disabled={i === 0}
+                        aria-label={`Move ${r.keyword || "rule"} up`}
+                        className="text-mute transition-colors hover:text-text disabled:opacity-20 disabled:hover:text-mute"
+                      >
+                        <ChevronUp size={11} strokeWidth={2} />
+                      </button>
+                      <button
+                        onClick={() => moveRule(i, 1)}
+                        disabled={i === rules.length - 1}
+                        aria-label={`Move ${r.keyword || "rule"} down`}
+                        className="text-mute transition-colors hover:text-text disabled:opacity-20 disabled:hover:text-mute"
+                      >
+                        <ChevronDown size={11} strokeWidth={2} />
+                      </button>
+                    </div>
+                    <span
+                      className="h-5 w-[3px] shrink-0"
+                      style={{ background: CAT_VAR[r.color] }}
+                    />
+                    <input
+                      value={r.keyword}
+                      onChange={(e) =>
+                        setRule(i, { keyword: e.target.value })
+                      }
+                      placeholder="keyword"
+                      className="min-w-0 flex-1 border-transparent bg-transparent px-2 py-1 text-[13px] placeholder:text-mute focus:bg-surface-2"
+                    />
+                    <select
+                      value={r.color}
+                      onChange={(e) =>
+                        setRule(i, { color: e.target.value as CatColor })
+                      }
+                      className="w-20 px-1 py-1 font-mono text-[10px] uppercase"
+                    >
+                      {COLORS.map((k) => (
+                        <option key={k} value={k}>
+                          {k}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={r.categoryId}
+                      onChange={(e) =>
+                        setRule(i, { categoryId: e.target.value })
+                      }
+                      className="w-28 px-1 py-1 font-mono text-[10px]"
+                    >
+                      <option value="">don&apos;t count</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() =>
+                        setProfile({
+                          calendarRules: rules.filter((_, j) => j !== i),
+                        })
+                      }
+                      className="text-mute opacity-0 transition-opacity hover:text-alarm group-hover:opacity-100"
+                      aria-label={`Delete rule ${r.keyword}`}
+                    >
+                      <Trash2 size={13} strokeWidth={1.5} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {rules.length === 0 && (
+                <p className="border-y border-line py-4 text-center font-mono text-[11px] text-mute">
+                  no rules — every event falls through to miscellaneous
+                </p>
+              )}
+              <button
+                onClick={() =>
+                  setProfile({
+                    calendarRules: [
+                      ...rules,
+                      {
+                        id: Math.random().toString(36).slice(2, 10),
+                        keyword: "",
+                        color: COLORS[rules.length % COLORS.length],
+                        categoryId: categories[0]?.id ?? "",
+                      },
+                    ],
+                  })
+                }
+                className="btn mt-3 flex items-center gap-1.5"
+              >
+                <Plus size={12} strokeWidth={2} /> Add rule
+              </button>
+
+              {/* the fallback bucket — every event lands somewhere */}
+              <div className="mt-5 border-t border-line pt-3">
+                <div className="flex items-center gap-2">
+                  <span className="t-num w-4 shrink-0 text-[10px] text-mute">
+                    —
+                  </span>
+                  <span
+                    className="h-5 w-[3px] shrink-0"
+                    style={{ background: CAT_VAR[miscColor] }}
+                  />
+                  <span className="t-label min-w-0 flex-1 px-2">
+                    {MISC_LABEL}
+                  </span>
+                  <select
+                    value={miscColor}
+                    onChange={(e) =>
+                      setProfile({
+                        calendarMiscColor: e.target.value as CatColor,
+                      })
+                    }
+                    className="w-20 px-1 py-1 font-mono text-[10px] uppercase"
+                  >
+                    {COLORS.map((k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="w-28 shrink-0 px-1 font-mono text-[10px] text-mute">
+                    never counted
+                  </span>
+                  <span className="w-[13px] shrink-0" />
+                </div>
+                <p className="mt-2 max-w-lg text-[11px] leading-relaxed text-mute">
+                  Anything no keyword claims. It still gets a colour so the
+                  timeline reads as deliberate rather than half-finished, but it
+                  never counts as planned work — a dentist appointment you
+                  skipped is not a promise you broke.
+                </p>
+              </div>
             </Row>
           </Section>
 

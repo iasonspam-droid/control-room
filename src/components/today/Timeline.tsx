@@ -5,11 +5,16 @@ import { differenceInMinutes, parseISO, startOfDay } from "date-fns";
 import { useSession } from "next-auth/react";
 import { Check, CornerUpLeft, RefreshCw, Undo2 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { catColor, tasksOnDay } from "@/lib/derive";
-import { fmtRange } from "@/lib/time";
-import { QUADRANT_META, taskXp } from "@/lib/xp";
-import type { Task } from "@/lib/types";
+import { CAT_VAR, catColor, tasksOnDay } from "@/lib/derive";
+import { resolveEventStyle, type EventStyle } from "@/lib/calendar-category";
+import { dayRange, fmtRange } from "@/lib/time";
+import { taskXp } from "@/lib/xp";
+import type { CatColor, Task } from "@/lib/types";
 import { deleteCalendarEvent } from "@/lib/calendar-client";
+import {
+  useGoogleCalendarEvents,
+  type ExternalEvent,
+} from "@/lib/use-google-calendar-events";
 
 const HOUR_H = 64;
 
@@ -58,11 +63,45 @@ function layout(items: Task[]) {
 }
 
 export function Timeline({ day }: { day: Date }) {
-  const { tasks, categories, profile, completeTask, uncompleteTask, unschedule } =
-    useStore();
+  const {
+    tasks,
+    categories,
+    profile,
+    setProfile,
+    completeTask,
+    uncompleteTask,
+    unschedule,
+  } = useStore();
   const { data: session } = useSession();
   const scroller = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(() => new Date());
+
+  /* The app's own blocks are already on the calendar (if synced) — never show
+     them a second time as an "external" event. */
+  const excludeIds = useMemo(
+    () => tasks.filter((t) => t.calendarEventId).map((t) => t.calendarEventId!),
+    [tasks],
+  );
+  const rules = profile.calendarRules ?? [];
+  const miscColor = profile.calendarMiscColor;
+
+  /* Completion for calendar blocks lives here, not in Google — see ExternalBlock. */
+  const completedEvents = useMemo(
+    () => new Set(profile.completedEventIds ?? []),
+    [profile.completedEventIds],
+  );
+  function toggleEventDone(id: string) {
+    const next = new Set(completedEvents);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setProfile({ completedEventIds: [...next] });
+  }
+  const { timeMin, timeMax } = useMemo(() => dayRange(day), [day]);
+  const { events: externalEvents } = useGoogleCalendarEvents(
+    timeMin,
+    timeMax,
+    excludeIds,
+  );
 
   /* Local state moves the block back to the queue instantly; the Calendar
      delete happens after, best-effort — see calendar-client.ts. */
@@ -149,6 +188,22 @@ export function Timeline({ day }: { day: Date }) {
           </div>
         )}
 
+        {/* real calendar, read-only — never part of the conflict-lane layout */}
+        {externalEvents.map((e) => (
+          <ExternalBlock
+            key={e.id}
+            event={e}
+            style={resolveEventStyle(e.summary, rules, miscColor)}
+            done={completedEvents.has(e.id)}
+            onToggle={() => toggleEventDone(e.id)}
+            top={top(e.start)}
+            height={
+              (differenceInMinutes(parseISO(e.end), parseISO(e.start)) / 60) *
+              HOUR_H
+            }
+          />
+        ))}
+
         {/* blocks */}
         {laid.map(({ t, lane, lanes }) => (
           <Block
@@ -173,6 +228,110 @@ export function Timeline({ day }: { day: Date }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * A real event already on the user's calendar — shown for context only.
+ * Deliberately not a `<button>` and not clickable: this app never modifies
+ * an event it didn't create (see Settings), so nothing here should even
+ * look actionable.
+ */
+/**
+ * A block from the real calendar.
+ *
+ * Read-only as far as Google is concerned — this app still never edits an
+ * event it didn't create — but you can tick it off here, and that tick is
+ * what tells the reality score the hour actually happened. Without it a
+ * calendar full of bookings would score 100% for a day spent doing none of it.
+ */
+function ExternalBlock({
+  event,
+  style,
+  done,
+  onToggle,
+  top,
+  height,
+}: {
+  event: ExternalEvent;
+  /** Colour and classification, resolved centrally from the rule list. */
+  style: EventStyle;
+  done: boolean;
+  onToggle: () => void;
+  top: number;
+  height: number;
+}) {
+  const short = height < 44;
+  const tint = CAT_VAR[style.color];
+  return (
+    <article
+      onClick={onToggle}
+      role="button"
+      tabIndex={0}
+      aria-label={`${event.summary} — ${done ? "mark not done" : "mark done"}`}
+      title={`${event.summary} · ${style.label} · ${
+        done ? "done, click to undo" : "click anywhere to mark done"
+      }`}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      className="group absolute left-14 right-2 z-[5] flex cursor-pointer overflow-hidden border border-dashed transition-colors"
+      style={{
+        top,
+        height: Math.max(26, height - 2),
+        borderColor: tint,
+        background: done ? "var(--color-cool-wash)" : "transparent",
+      }}
+    >
+      <span className="w-[3px] shrink-0" style={{ background: tint }} />
+      <div className="flex min-w-0 flex-1 items-start gap-2 px-2.5 py-1.5">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+          tabIndex={-1}
+          aria-hidden="true"
+          className="mt-[2px] grid h-[24px] w-[24px] shrink-0 place-items-center border-2 transition-colors"
+          style={
+            done
+              ? {
+                  borderColor: "var(--color-cool)",
+                  background: "var(--color-cool)",
+                  color: "var(--color-bg)",
+                }
+              : {
+                  borderColor: "#ede7dc",
+                  background: "rgba(237, 231, 220, 0.18)",
+                  color: "#ede7dc",
+                }
+          }
+        >
+          <Check
+            size={16}
+            strokeWidth={3}
+            className={done ? "" : "opacity-40 transition-opacity group-hover:opacity-100"}
+          />
+        </button>
+        <div className="min-w-0 flex-1">
+          <div
+            className="truncate text-[26px] leading-tight"
+            style={{ color: tint, opacity: done ? 0.55 : 1 }}
+          >
+            {event.summary}
+          </div>
+          {!short && (
+            <span className="t-num text-[10px] text-dim">
+              {fmtRange(event.start, event.end)}
+              {done && <span className="ml-2 text-cool">done</span>}
+            </span>
+          )}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -203,7 +362,22 @@ function Block({
 
   return (
     <article
-      className={`group absolute z-10 flex overflow-hidden border transition-colors ${
+      /* The whole block toggles done, exactly as the Week grid already does.
+         Hunting for a 24px square to record an hour of work is the wrong deal
+         — and if the box is ever hard to spot, the score quietly stops
+         reflecting reality, which is the one thing it exists to do. */
+      onClick={done ? onUndo : onComplete}
+      role="button"
+      tabIndex={0}
+      aria-label={done ? `${task.title} — mark not done` : `${task.title} — mark done`}
+      title={done ? "Done — click anywhere to undo" : "Click anywhere to mark done"}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          (done ? onUndo : onComplete)();
+        }
+      }}
+      className={`group absolute z-10 flex cursor-pointer overflow-hidden border transition-colors ${
         done
           ? "border-line bg-cool-wash"
           : "border-line-hot bg-surface-2 hover:z-30 hover:border-dim"
@@ -221,20 +395,38 @@ function Block({
       />
       <div className="flex min-w-0 flex-1 items-start gap-2 px-2.5 py-1.5">
         <button
-          onClick={done ? onUndo : onComplete}
-          aria-label={done ? "Mark not done" : "Mark done"}
-          className={`mt-[1px] grid h-[15px] w-[15px] shrink-0 place-items-center border transition-colors ${
+          onClick={(e) => {
+            e.stopPropagation();
+            (done ? onUndo : onComplete)();
+          }}
+          tabIndex={-1}
+          aria-hidden="true"
+          title={done ? "Done — click to undo" : "Mark this block done"}
+          className="mt-[2px] grid h-[24px] w-[24px] shrink-0 place-items-center border-2 transition-colors"
+          style={
             done
-              ? "border-cool-dim bg-cool-dim text-bg"
-              : "border-line-hot hover:border-signal hover:bg-signal-wash"
-          }`}
+              ? {
+                  borderColor: "var(--color-cool)",
+                  background: "var(--color-cool)",
+                  color: "var(--color-bg)",
+                }
+              : {
+                  borderColor: "#ede7dc",
+                  background: "rgba(237, 231, 220, 0.18)",
+                  color: "#ede7dc",
+                }
+          }
         >
-          {done && <Check size={11} strokeWidth={3} />}
+          <Check
+            size={16}
+            strokeWidth={3}
+            className={done ? "" : "opacity-40 transition-opacity group-hover:opacity-100"}
+          />
         </button>
 
         <div className="min-w-0 flex-1">
           <div
-            className={`truncate text-[13px] leading-tight ${
+            className={`truncate text-[26px] leading-tight ${
               done ? "text-dim" : "text-text"
             }`}
           >
@@ -245,16 +437,13 @@ function Block({
               <span className="t-num text-[10px] text-mute">
                 {fmtRange(task.scheduledStart!, task.scheduledEnd!)}
               </span>
-              <span className="t-label !text-[9px] !tracking-[0.1em] text-mute">
-                {QUADRANT_META[task.quadrant].key}
-              </span>
               <span
                 className={`t-num text-[10px] ${
                   done ? "text-cool" : "text-signal-dim"
                 }`}
               >
                 {done ? "+" : ""}
-                {taskXp(task.actualMin ?? task.estimateMin, task.quadrant)} xp
+                {taskXp(task.actualMin ?? task.estimateMin)} xp
               </span>
               {task.calendarEventId && (
                 <RefreshCw
@@ -270,7 +459,10 @@ function Block({
 
         {!done && (
           <button
-            onClick={onUnschedule}
+            onClick={(e) => {
+              e.stopPropagation();
+              onUnschedule();
+            }}
             title="Back to queue"
             className="shrink-0 text-mute opacity-0 transition-opacity hover:text-text group-hover:opacity-100"
           >

@@ -38,6 +38,8 @@
   --color-cat-teal: #4e9a8f;
   --color-cat-steel: #5c7c9e;
   --color-cat-plum: #8b6b94;
+  /* the neutral of the band — for things that are classified as nothing */
+  --color-cat-slate: #8a8580;
 
   --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono), ui-monospace, monospace;

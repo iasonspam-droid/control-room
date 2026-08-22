@@ -10,16 +10,21 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <Boot>
-      <div className="gridpaper flex h-dvh overflow-hidden bg-bg">
-        <CloudSync />
-        <Reminders />
-        <Rail />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <Readout />
-          <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+    <>
+      {/* Outside Boot deliberately: this is what sets `ready` true when the
+          store already thinks it's in cloud mode, so it can never be gated
+          behind the flag it's responsible for setting. */}
+      <CloudSync />
+      <Boot>
+        <div className="gridpaper flex h-dvh overflow-hidden bg-bg">
+          <Reminders />
+          <Rail />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <Readout />
+            <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+          </div>
         </div>
-      </div>
-    </Boot>
+      </Boot>
+    </>
   );
 }

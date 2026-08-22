@@ -6,7 +6,8 @@ export type CatColor =
   | "olive"
   | "teal"
   | "steel"
-  | "plum";
+  | "plum"
+  | "slate";
 
 export interface Category {
   id: string;
@@ -17,6 +18,23 @@ export interface Category {
   /** Hours you intend to put in per week. Drives the ring on Today and Week. */
   weeklyTargetHours: number;
   archived?: boolean;
+}
+
+/**
+ * One rule for reading your Google Calendar.
+ *
+ * A keyword does two jobs at once: it gives the event a colour on the
+ * timeline, and it says which category the time counts toward. Both come from
+ * the same row so a calendar that looks right is also scored right — two
+ * separate lists would drift apart the first time you edited one of them.
+ */
+export interface CalendarRule {
+  id: string;
+  /** Matched case-insensitively anywhere in the event title. */
+  keyword: string;
+  color: CatColor;
+  /** Empty means "show it in this colour, but don't count it as planned work". */
+  categoryId: string;
 }
 
 export type TaskStatus = "open" | "done" | "skipped";
@@ -82,4 +100,17 @@ export interface Profile {
   remindLeadMin: number;
   calendarConnected: boolean;
   calendarId?: string;
+  /** Keyword → colour → category, in match order. See CalendarRule. */
+  calendarRules?: CalendarRule[];
+  /** Colour for events no rule claims — the MISCELLANEOUS bucket. */
+  calendarMiscColor?: CatColor;
+  /**
+   * Google Calendar event ids ticked off as actually done.
+   *
+   * The app never writes to an event it didn't create, so completion for
+   * external blocks has to live on this side. Without it a booked hour would
+   * always count as an hour worked, and the reality score would only ever be
+   * able to say 100%.
+   */
+  completedEventIds?: string[];
 }

@@ -162,7 +162,7 @@ export const useStore = create<State>()(
           log: s.log,
           streak: s.streak,
           xp: s.xp,
-          events: [],
+          events: s.events,
           ready: true,
         });
       },
@@ -181,6 +181,7 @@ export const useStore = create<State>()(
             log: s.log,
             streak: s.streak,
             xp: s.xp,
+            events: s.events,
             ready: true,
           });
         } else {
@@ -198,7 +199,7 @@ export const useStore = create<State>()(
           log: s.log,
           streak: s.streak,
           xp: s.xp,
-          events: [],
+          events: s.events,
           ready: true,
         });
       },
@@ -231,7 +232,7 @@ export const useStore = create<State>()(
           const task = s.tasks.find((t) => t.id === id);
           if (!task || task.status === "done") return {};
           const minutes = actualMin ?? task.estimateMin;
-          const amount = taskXp(minutes, task.quadrant);
+          const amount = taskXp(minutes);
           return {
             tasks: s.tasks.map((t) =>
               t.id === id
@@ -252,7 +253,7 @@ export const useStore = create<State>()(
         set((s) => {
           const task = s.tasks.find((t) => t.id === id);
           if (!task || task.status !== "done") return {};
-          const amount = taskXp(task.actualMin ?? task.estimateMin, task.quadrant);
+          const amount = taskXp(task.actualMin ?? task.estimateMin);
           return {
             tasks: s.tasks.map((t) =>
               t.id === id

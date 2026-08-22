@@ -1,36 +1,42 @@
-import type { Quadrant } from "./types";
-
-/**
- * Quadrant weights.
- *
- * Q2 pays the most — deliberately. Urgent-and-important work already rewards
- * itself with relief; the work that actually compounds is the important thing
- * that isn't screaming yet, and that is the only kind a scoring system can
- * meaningfully bribe you into doing. Q3 and Q4 are priced low on purpose.
- */
-export const QUADRANT_WEIGHT: Record<Quadrant, number> = {
-  q1: 1.0,
-  q2: 1.5,
-  q3: 0.6,
-  q4: 0.3,
-};
-
-export const QUADRANT_META: Record<
-  Quadrant,
-  { key: string; name: string; blurb: string }
-> = {
-  q1: { key: "Q1", name: "Do now", blurb: "Urgent and important" },
-  q2: { key: "Q2", name: "Book time", blurb: "Important, not urgent" },
-  q3: { key: "Q3", name: "Cut or hand off", blurb: "Urgent, not important" },
-  q4: { key: "Q4", name: "Drop", blurb: "Neither" },
-};
-
 export const LOG_ENTRY_XP = 15;
 
-/** XP for finishing a task: 5 XP per quarter-hour, scaled by quadrant. */
-export function taskXp(minutes: number, quadrant: Quadrant): number {
+/**
+ * XP for finishing a task: 5 XP per quarter-hour, and nothing else.
+ *
+ * Time is the one input here that isn't a judgement call, so it is the only
+ * one the score uses — no multiplier for how urgent or important you decided
+ * something was. A score that moves with a subjective call ends up measuring
+ * your labelling rather than your week.
+ */
+export function taskXp(minutes: number): number {
   const units = Math.max(1, minutes / 15);
-  return Math.max(5, Math.round(units * 5 * QUADRANT_WEIGHT[quadrant]));
+  return Math.max(5, Math.round(units * 5));
+}
+
+/**
+ * XP earned inside a window — this is what "XP today" and "XP this week" are.
+ *
+ * There is no stored daily or weekly counter, and deliberately so: every award
+ * is already timestamped in the event feed, so a period total is a sum rather
+ * than a number that has to be reset on a schedule and can drift if a reset is
+ * ever missed. Lifetime XP (`profile.xp`) is untouched by the same reasoning —
+ * it is a different question, not a stale version of this one.
+ *
+ * Note the feed is capped (see the store), so for a genuinely enormous week
+ * this is a floor rather than an exact figure. Permanent history is summed
+ * from the uncapped ledger server-side instead — see lib/snapshots.ts.
+ */
+export function xpInRange(
+  events: { at: string; amount: number }[],
+  start: Date,
+  end: Date,
+): number {
+  const from = +start;
+  const to = +end;
+  return events.reduce((total, e) => {
+    const at = +new Date(e.at);
+    return at >= from && at < to ? total + e.amount : total;
+  }, 0);
 }
 
 /** Cumulative XP required to *reach* a level. Level 1 is zero. */

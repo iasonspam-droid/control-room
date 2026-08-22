@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { format, isAfter, parseISO } from "date-fns";
+import { endOfDay, format, isAfter, parseISO, startOfDay } from "date-fns";
 import { Flame, Snowflake } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { catColor, weekTotals } from "@/lib/derive";
 import { fmtClock } from "@/lib/time";
-import { taskXp } from "@/lib/xp";
-import { dayKey } from "@/lib/time";
+import { xpInRange } from "@/lib/xp";
 
 function Cell({
   label,
@@ -31,7 +30,7 @@ function Cell({
 }
 
 export function Readout() {
-  const { tasks, categories, streak, profile } = useStore();
+  const { tasks, categories, streak, profile, events } = useStore();
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -47,10 +46,9 @@ export function Readout() {
   );
   const pct = target ? Math.round((done / target) * 100) : 0;
 
-  const today = dayKey(now);
-  const xpToday = tasks
-    .filter((t) => t.status === "done" && t.completedAt && dayKey(t.completedAt) === today)
-    .reduce((a, t) => a + taskXp(t.actualMin ?? t.estimateMin, t.quadrant), 0);
+  /* Every award, not just finished tasks — a log entry and a cleared goal are
+     XP you earned today too, and the old task-only sum quietly left them out. */
+  const xpToday = xpInRange(events, startOfDay(now), endOfDay(now));
 
   const next = tasks
     .filter(

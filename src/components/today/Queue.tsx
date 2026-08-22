@@ -8,8 +8,8 @@ import { useStore } from "@/lib/store";
 import { catColor, unscheduled } from "@/lib/derive";
 import { nextFreeSlot } from "@/lib/schedule";
 import { fmtDuration } from "@/lib/time";
-import { QUADRANT_META, QUADRANT_WEIGHT, taskXp } from "@/lib/xp";
-import type { Quadrant, Task } from "@/lib/types";
+import { taskXp } from "@/lib/xp";
+import type { Task } from "@/lib/types";
 import { Empty } from "@/components/ui/Panel";
 import { createCalendarEvent } from "@/lib/calendar-client";
 
@@ -21,11 +21,9 @@ export function Queue({ day }: { day: Date }) {
   const [note, setNote] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
 
-  const queue = unscheduled(tasks).sort(
-    (a, b) =>
-      QUADRANT_WEIGHT[b.quadrant] - QUADRANT_WEIGHT[a.quadrant] ||
-      b.estimateMin - a.estimateMin,
-  );
+  /* Longest first: the queue is a list of things you have not started, and the
+     big ones are the ones that need a slot found for them. */
+  const queue = unscheduled(tasks).sort((a, b) => b.estimateMin - a.estimateMin);
 
   function flash(message: string, ms = 4000) {
     setNote(message);
@@ -118,14 +116,11 @@ export function Queue({ day }: { day: Date }) {
             <div className="min-w-0 flex-1">
               <p className="text-[13px] leading-snug">{t.title}</p>
               <div className="mt-1 flex items-center gap-2">
-                <span className="t-label !text-[9px]">
-                  {QUADRANT_META[t.quadrant].key}
-                </span>
                 <span className="t-num text-[10px] text-mute">
                   {fmtDuration(t.estimateMin)}
                 </span>
                 <span className="t-num text-[10px] text-signal-dim">
-                  {taskXp(t.estimateMin, t.quadrant)} xp
+                  {taskXp(t.estimateMin)} xp
                 </span>
               </div>
             </div>
@@ -161,13 +156,12 @@ function Composer({ onDone }: { onDone: () => void }) {
   const { categories, addTask } = useStore();
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
-  const [quadrant, setQuadrant] = useState<Quadrant>("q2");
   const [minutes, setMinutes] = useState(45);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
-    addTask({ title: title.trim(), categoryId, quadrant, estimateMin: minutes });
+    addTask({ title: title.trim(), categoryId, estimateMin: minutes });
     setTitle("");
     onDone();
   }
@@ -181,7 +175,7 @@ function Composer({ onDone }: { onDone: () => void }) {
         placeholder="What needs doing?"
         className="w-full bg-bg px-2 py-1.5 text-[13px] placeholder:text-mute"
       />
-      <div className="mt-2 grid grid-cols-3 gap-2">
+      <div className="mt-2 grid grid-cols-2 gap-2">
         <select
           value={categoryId}
           onChange={(e) => setCategoryId(e.target.value)}
@@ -190,17 +184,6 @@ function Composer({ onDone }: { onDone: () => void }) {
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={quadrant}
-          onChange={(e) => setQuadrant(e.target.value as Quadrant)}
-          className="px-2 py-1.5 font-mono text-[11px]"
-        >
-          {(Object.keys(QUADRANT_META) as Quadrant[]).map((q) => (
-            <option key={q} value={q}>
-              {QUADRANT_META[q].key} · {QUADRANT_META[q].name}
             </option>
           ))}
         </select>
